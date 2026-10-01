@@ -9,11 +9,5 @@ fi
 
 cd "${CLAUDE_PROJECT_DIR:-$(dirname "$0")/..}"
 
-# Gradle の実行用。ビルドに使う JDK 21 は foojay で自動取得される
-if ! command -v java >/dev/null 2>&1; then
-  echo "java not found." >&2
-  exit 1
-fi
-
 # Gradle本体と依存関係を事前取得し、コンパイルまで通しておく
 ./gradlew --no-daemon -q compileKotlin
