@@ -199,7 +199,11 @@ class MainViewModel(
             viewModelState
                 .map { state ->
                     val loaded = state.source as? SourceState.Loaded
-                    if (loaded != null) EstimateInput(loaded.file, loaded.info, state.settings) else null
+                    if (loaded != null) {
+                        EstimateInput(loaded.file, loaded.info, state.settings, state.export is ExportState.Running)
+                    } else {
+                        null
+                    }
                 }
                 .distinctUntilChanged()
                 .collectLatest { input -> estimateSize(input) }
@@ -288,6 +292,19 @@ class MainViewModel(
     private suspend fun estimateSize(input: EstimateInput?) {
         if (input == null) {
             viewModelState.update { it.copy(sizeEstimate = SizeEstimateState.None) }
+            return
+        }
+        // 推定用のサンプルエンコードが本番の書き出しとCPUを奪い合わないよう、書き出し中は推定しない
+        if (input.isExporting) {
+            viewModelState.update {
+                it.copy(
+                    sizeEstimate = if (it.sizeEstimate is SizeEstimateState.Calculating) {
+                        SizeEstimateState.None
+                    } else {
+                        it.sizeEstimate
+                    },
+                )
+            }
             return
         }
         when (val bitRate = input.settings.bitRate) {
@@ -562,6 +579,7 @@ class MainViewModel(
         val file: File,
         val info: VideoInfo,
         val settings: EncodeSettings,
+        val isExporting: Boolean,
     )
 
     private sealed interface SizeEstimateState {
