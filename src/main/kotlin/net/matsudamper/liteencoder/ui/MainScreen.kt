@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -189,8 +190,9 @@ private fun SidePanel(
         Text(
             source.fileName,
             style = MaterialTheme.typography.titleLarge,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
         )
         val sourceState = source.state
         if (sourceState is MainUiState.SourceState.Loaded) {
