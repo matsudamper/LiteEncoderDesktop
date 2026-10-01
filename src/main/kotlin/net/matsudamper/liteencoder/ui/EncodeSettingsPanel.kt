@@ -88,11 +88,14 @@ private fun BitRateSelector(
     enabled: Boolean,
     onBitRateChange: (BitRateSetting) -> Unit,
 ) {
-    var customText by remember { mutableStateOf("") }
+    var customText by remember(info) { mutableStateOf("") }
     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         FilterChip(
             selected = bitRate is BitRateSetting.Quality,
-            onClick = { onBitRateChange(BitRateSetting.Quality(BitRateSetting.DEFAULT_CRF)) },
+            onClick = {
+                customText = ""
+                onBitRateChange(BitRateSetting.Quality(BitRateSetting.DEFAULT_CRF))
+            },
             label = { Text("自動（品質指定）") },
             enabled = enabled,
         )
