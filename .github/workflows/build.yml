@@ -22,7 +22,6 @@ jobs:
         with:
           # v6のデフォルト(enhanced)は商用キャッシュサービスのため、OSSのGitHub Actions cache実装を使う
           cache-provider: basic
-          # Gradle User Home (依存・ラッパー・ビルドキャッシュ) をキャッシュ。書き込みは main のみ
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
       - name: Build
         run: ./gradlew build
