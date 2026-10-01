@@ -16,6 +16,10 @@ kotlin {
 dependencies {
     implementation(compose.desktop.windows_x64)
     implementation(compose.material3)
+    implementation(libs.kotlinx.coroutines.swing)
+    implementation(libs.filekit.dialogs.compose)
+
+    testImplementation(kotlin("test"))
 }
 
 compose.desktop {

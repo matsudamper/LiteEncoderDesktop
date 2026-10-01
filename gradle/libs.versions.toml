@@ -1,6 +1,12 @@
 [versions]
 kotlin = "2.4.20"
 compose = "1.12.1"
+coroutines = "1.11.0"
+filekit = "0.16.0"
+
+[libraries]
+kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "coroutines" }
+filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose", version.ref = "filekit" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
