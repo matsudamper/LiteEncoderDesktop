@@ -92,7 +92,8 @@ class AppState(private val scope: CoroutineScope) {
                 info = loaded.info,
                 settings = settings,
                 onProgress = { progress ->
-                    scope.launch { exportState = ExportState.Running(output, progress) }
+                    // エクスポートのJobに紐づけてMainで更新し、キャンセル後に古い進捗で上書きされないようにする
+                    withContext(Dispatchers.Main) { exportState = ExportState.Running(output, progress) }
                 },
             )
             exportState = result.fold(
