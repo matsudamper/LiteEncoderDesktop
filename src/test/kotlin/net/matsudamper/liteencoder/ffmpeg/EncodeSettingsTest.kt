@@ -6,8 +6,8 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class EncodeSettingsTest {
-    private val landscape = VideoInfo(width = 1920, height = 1080, frameRate = 29.97, durationSeconds = 10.0, bitRateKbps = null)
-    private val portrait = VideoInfo(width = 1080, height = 1920, frameRate = 60.0, durationSeconds = 10.0, bitRateKbps = null)
+    private val landscape = VideoInfo(displayWidth = 1920, displayHeight = 1080, frameRate = 29.97, durationSeconds = 10.0, bitRateKbps = null)
+    private val portrait = VideoInfo(displayWidth = 1080, displayHeight = 1920, frameRate = 60.0, durationSeconds = 10.0, bitRateKbps = null)
 
     @Test
     fun keepsAspectRatioForLandscape() {

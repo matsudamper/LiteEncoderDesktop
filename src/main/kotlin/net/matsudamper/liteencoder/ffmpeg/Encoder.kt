@@ -11,20 +11,15 @@ import java.nio.file.StandardCopyOption
 import kotlin.concurrent.thread
 
 object Encoder {
-    /**
-     * 一時ファイルに書き出し、成功した場合のみ[output]へ置き換える。
-     * キャンセル・失敗時に既存の[output]を壊さないため。
-     *
-     * @param onProgress 0.0〜1.0。エンコード処理のコルーチン上で呼ばれる
-     */
     suspend fun encode(
         paths: FFmpegPaths,
         input: File,
         output: File,
         info: VideoInfo,
         settings: EncodeSettings,
-        onProgress: suspend (Float) -> Unit,
+        onProgressRatio: suspend (Float) -> Unit,
     ): Result<Unit> = withContext(Dispatchers.IO) {
+        // キャンセル・失敗時に既存の出力ファイルを壊さないよう、一時ファイルに書き出してから置き換える
         val temp = File(output.parentFile, ".${output.name}.${System.currentTimeMillis()}.tmp")
         var process: Process? = null
         try {
@@ -44,7 +39,7 @@ object Encoder {
                     currentCoroutineContext().ensureActive()
                     val value = line.substringAfter("out_time_us=", "")
                     if (value.isNotEmpty()) {
-                        value.toLongOrNull()?.let { onProgress((it / durationUs).toFloat().coerceIn(0f, 1f)) }
+                        value.toLongOrNull()?.let { onProgressRatio((it / durationUs).toFloat().coerceIn(0f, 1f)) }
                     }
                 }
             }
@@ -55,7 +50,7 @@ object Encoder {
                 error(message.ifBlank { "ffmpeg exited with $exitCode" })
             }
             Files.move(temp.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING)
-            onProgress(1f)
+            onProgressRatio(1f)
             Result.success(Unit)
         } catch (e: CancellationException) {
             throw e

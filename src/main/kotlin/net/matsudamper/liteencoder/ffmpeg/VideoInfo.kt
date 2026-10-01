@@ -5,15 +5,13 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 data class VideoInfo(
-    /** 回転を考慮した表示上の幅 */
-    val width: Int,
-    /** 回転を考慮した表示上の高さ */
-    val height: Int,
+    val displayWidth: Int,
+    val displayHeight: Int,
     val frameRate: Double,
     val durationSeconds: Double,
     val bitRateKbps: Int?,
 ) {
-    val shortSide: Int get() = minOf(width, height)
+    val shortSide: Int get() = minOf(displayWidth, displayHeight)
 }
 
 object VideoProbe {
@@ -53,8 +51,8 @@ object VideoProbe {
         val bitRate = (find("stream.0.bit_rate") ?: find("format.bit_rate"))?.toLongOrNull()
 
         VideoInfo(
-            width = if (rotated) rawHeight else rawWidth,
-            height = if (rotated) rawWidth else rawHeight,
+            displayWidth = if (rotated) rawHeight else rawWidth,
+            displayHeight = if (rotated) rawWidth else rawHeight,
             frameRate = frameRate,
             durationSeconds = find("format.duration")?.toDoubleOrNull() ?: 0.0,
             bitRateKbps = bitRate?.let { (it / 1000).toInt() },

@@ -11,13 +11,10 @@ data class FFmpegPaths(
 object FFmpegLocator {
     const val WINGET_INSTALL_COMMAND = "winget install --id Gyan.FFmpeg -e"
 
-    /**
-     * PATH上のffmpeg/ffprobeを探す。
-     * winget直後は起動中プロセスのPATHが更新されないため、wingetのLinksディレクトリも探す。
-     */
     fun locate(): FFmpegPaths? {
         val candidates = buildList {
             add(FFmpegPaths(ffmpeg = "ffmpeg", ffprobe = "ffprobe"))
+            // winget直後は起動中プロセスのPATHが更新されないため、wingetのLinksディレクトリも探す
             System.getenv("LOCALAPPDATA")?.let { localAppData ->
                 val links = File(localAppData, "Microsoft\\WinGet\\Links")
                 add(

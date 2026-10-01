@@ -59,7 +59,7 @@ fun VideoPreview(
             startSeconds = start,
             size = previewSize,
             frameRate = info.frameRate,
-            realtime = true,
+            throttleToPlaybackSpeed = true,
         ).collect {
             frame = it.image
             position = it.positionSeconds.coerceAtMost(duration)
@@ -76,7 +76,7 @@ fun VideoPreview(
             startSeconds = position,
             size = previewSize,
             frameRate = info.frameRate,
-            realtime = false,
+            throttleToPlaybackSpeed = false,
             maxFrames = 1,
         ).collect { frame = it.image }
     }
@@ -126,12 +126,12 @@ fun VideoPreview(
 private fun previewSize(info: VideoInfo): Size {
     val scale = minOf(
         1.0,
-        PREVIEW_MAX_WIDTH.toDouble() / info.width,
-        PREVIEW_MAX_HEIGHT.toDouble() / info.height,
+        PREVIEW_MAX_WIDTH.toDouble() / info.displayWidth,
+        PREVIEW_MAX_HEIGHT.toDouble() / info.displayHeight,
     )
     return Size(
-        width = ((info.width * scale).roundToInt() / 2 * 2).coerceAtLeast(2),
-        height = ((info.height * scale).roundToInt() / 2 * 2).coerceAtLeast(2),
+        width = ((info.displayWidth * scale).roundToInt() / 2 * 2).coerceAtLeast(2),
+        height = ((info.displayHeight * scale).roundToInt() / 2 * 2).coerceAtLeast(2),
     )
 }
 

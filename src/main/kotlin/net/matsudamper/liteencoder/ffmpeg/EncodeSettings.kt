@@ -14,13 +14,13 @@ enum class ResolutionPreset(val label: String, val shortSide: Int?) {
 
     fun isAvailableFor(info: VideoInfo): Boolean = shortSide == null || shortSide <= info.shortSide
 
-    /** 比率を維持したまま短辺を[shortSide]に合わせたサイズ。H.264のため偶数に丸める */
+    // libx264(yuv420p)は奇数サイズを扱えないため偶数に丸める
     fun outputSize(info: VideoInfo): Size {
-        val target = shortSide ?: return Size(info.width.toEven(), info.height.toEven())
+        val target = shortSide ?: return Size(info.displayWidth.toEven(), info.displayHeight.toEven())
         val scale = target.toDouble() / info.shortSide
         return Size(
-            width = (info.width * scale).roundToInt().toEven(),
-            height = (info.height * scale).roundToInt().toEven(),
+            width = (info.displayWidth * scale).roundToInt().toEven(),
+            height = (info.displayHeight * scale).roundToInt().toEven(),
         )
     }
 
@@ -41,7 +41,6 @@ enum class FrameRatePreset(val label: String, val fps: Int?) {
 }
 
 sealed interface BitRateSetting {
-    /** 品質指定(CRF)。ビットレートは自動 */
     data class Quality(val crf: Int) : BitRateSetting
 
     data class Constant(val kbps: Int) : BitRateSetting

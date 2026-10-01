@@ -15,31 +15,24 @@ import java.io.EOFException
 import java.io.File
 import java.util.Locale
 
-/**
- * ffmpegでrawvideo(RGBA)にデコードし、プレビュー用のフレームを取り出す。
- */
 object FrameDecoder {
     data class Frame(
         val image: ImageBitmap,
         val positionSeconds: Double,
     )
 
-    /**
-     * @param realtime trueなら等速(-re)でデコードする
-     * @param maxFrames nullなら最後まで
-     */
     fun decode(
         paths: FFmpegPaths,
         file: File,
         startSeconds: Double,
         size: Size,
         frameRate: Double,
-        realtime: Boolean,
+        throttleToPlaybackSpeed: Boolean,
         maxFrames: Int? = null,
     ): Flow<Frame> = flow {
         val command = buildList {
             addAll(listOf(paths.ffmpeg, "-v", "error", "-nostdin"))
-            if (realtime) add("-re")
+            if (throttleToPlaybackSpeed) add("-re")
             addAll(listOf("-ss", String.format(Locale.US, "%.3f", startSeconds), "-i", file.absolutePath))
             addAll(listOf("-an", "-sn", "-vf", "scale=${size.width}:${size.height}"))
             maxFrames?.let { addAll(listOf("-frames:v", it.toString())) }

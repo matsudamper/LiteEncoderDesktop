@@ -216,7 +216,7 @@ private fun SidePanel(
         if (source is SourceState.Loaded) {
             val info = source.info
             Text(
-                "${info.width} × ${info.height} / %.2f fps / ${formatTime(info.durationSeconds)}".format(info.frameRate),
+                "${info.displayWidth} × ${info.displayHeight} / %.2f fps / ${formatTime(info.durationSeconds)}".format(info.frameRate),
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -268,7 +268,7 @@ private fun ExportSection(
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f),
                 )
-                TextButton(onClick = { openFolder(exportState.output) }) {
+                TextButton(onClick = { revealInExplorer(exportState.output) }) {
                     Text("フォルダを開く")
                 }
             }
@@ -299,9 +299,8 @@ private fun java.awt.datatransfer.Transferable.droppedFiles(): List<File> {
         .filter { it.isFile }
 }
 
-private fun openFolder(file: File) {
+private fun revealInExplorer(file: File) {
     runCatching {
-        // Explorerでファイルを選択した状態で開く
         ProcessBuilder("explorer.exe", "/select,", file.absolutePath).start()
     }.onFailure {
         file.parentFile?.let { Desktop.getDesktop().open(it) }
