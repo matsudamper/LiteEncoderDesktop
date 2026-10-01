@@ -112,11 +112,14 @@ class MainViewModel(
         override fun onCustomBitRateChange(text: String) {
             val digits = text.filter { it.isDigit() }.take(6)
             val kbps = digits.toIntOrNull()?.takeIf { it > 0 }
+            // 空欄のまま以前のカスタム値で書き出されないよう、空欄なら自動（品質指定）に戻す
+            val bitRate = if (kbps != null) {
+                BitRateSetting.Constant(kbps)
+            } else {
+                BitRateSetting.Quality(BitRateSetting.DEFAULT_CRF)
+            }
             viewModelState.update {
-                it.copy(
-                    customBitRateText = digits,
-                    settings = if (kbps != null) it.settings.copy(bitRate = BitRateSetting.Constant(kbps)) else it.settings,
-                )
+                it.copy(customBitRateText = digits, settings = it.settings.copy(bitRate = bitRate))
             }
         }
     }
