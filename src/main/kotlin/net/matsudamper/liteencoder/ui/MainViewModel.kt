@@ -376,6 +376,10 @@ class MainViewModel(
             frames.collect { frame ->
                 viewModelState.update { it.copy(preview = applyFrame(it.preview, frame).copy(errorMessage = null)) }
             }
+            // ffmpegが正常終了してもフレームを出さないファイルがあるため、一度も表示できていなければエラーにする
+            if (viewModelState.value.preview.frame == null) {
+                viewModelState.update { it.copy(preview = it.preview.copy(errorMessage = "表示できるフレームがありません")) }
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
