@@ -1,5 +1,29 @@
 # LiteEncoderDesktop
 
-ffmpegを使用した簡易エンコーダ
+ffmpeg を使った Windows 向けの簡易動画エンコーダ。
 
-ComposeDesktop
+動画ファイルをドロップし、プレビューと推定サイズを見ながら品質やビットレートを調整して書き出す。
+
+## 必要なもの
+
+- Windows (x64)
+- ffmpeg / ffprobe
+
+ffmpeg が見つからない場合はアプリ上にインストール方法が表示される。
+
+```
+winget install --id Gyan.FFmpeg -e
+```
+
+## ビルド
+
+JDK 21 が必要。
+
+```
+./gradlew run         # 起動
+./gradlew packageMsi  # MSI を作成
+```
+
+## 技術スタック
+
+- Kotlin / Compose Multiplatform (Desktop)
