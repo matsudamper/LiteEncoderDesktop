@@ -39,8 +39,8 @@ import java.io.File
 import java.nio.file.Files
 import kotlin.math.roundToInt
 
-private const val PREVIEW_MAX_WIDTH = 1920
-private const val PREVIEW_MAX_HEIGHT = 1080
+private val STILL_PREVIEW_MAX_SIZE = Size(width = 1920, height = 1080)
+private val PLAYBACK_PREVIEW_MAX_SIZE = Size(width = 960, height = 540)
 private const val MIN_CRF = 16
 private const val MAX_CRF = 35
 
@@ -96,6 +96,8 @@ class MainViewModel(
         override fun onPlayPauseClick() {
             if (viewModelState.value.preview.isPlaying) {
                 stopPlayback()
+                // 再生中は低解像度で描画しているため、停止位置を高解像度で取り直す
+                showFrameAt(viewModelState.value.preview.positionSeconds, debounceMillis = 0)
             } else {
                 startPlayback()
             }
@@ -244,7 +246,14 @@ class MainViewModel(
             viewModelState.update { state ->
                 state.copy(
                     source = result.fold(
-                        onSuccess = { SourceState.Loaded(file, it, previewSize(it)) },
+                        onSuccess = {
+                            SourceState.Loaded(
+                                file = file,
+                                info = it,
+                                stillPreviewSize = previewSize(it, STILL_PREVIEW_MAX_SIZE),
+                                playbackPreviewSize = previewSize(it, PLAYBACK_PREVIEW_MAX_SIZE),
+                            )
+                        },
                         onFailure = { SourceState.Error(file, it.message ?: "読み込みに失敗しました") },
                     ),
                 )
@@ -345,7 +354,7 @@ class MainViewModel(
                     paths = paths,
                     file = loaded.file,
                     startSeconds = start,
-                    size = loaded.previewSize,
+                    size = loaded.playbackPreviewSize,
                     frameRate = loaded.info.frameRate,
                     throttleToPlaybackSpeed = true,
                     maxFrames = null,
@@ -374,7 +383,7 @@ class MainViewModel(
                     paths = paths,
                     file = loaded.file,
                     startSeconds = seconds,
-                    size = loaded.previewSize,
+                    size = loaded.stillPreviewSize,
                     frameRate = loaded.info.frameRate,
                     throttleToPlaybackSpeed = false,
                     maxFrames = 1,
@@ -599,7 +608,12 @@ class MainViewModel(
         val file: File
 
         data class Loading(override val file: File) : SourceState
-        data class Loaded(override val file: File, val info: VideoInfo, val previewSize: Size) : SourceState
+        data class Loaded(
+            override val file: File,
+            val info: VideoInfo,
+            val stillPreviewSize: Size,
+            val playbackPreviewSize: Size,
+        ) : SourceState
         data class Error(override val file: File, val message: String) : SourceState
     }
 
@@ -622,11 +636,11 @@ class MainViewModel(
     }
 }
 
-private fun previewSize(info: VideoInfo): Size {
+private fun previewSize(info: VideoInfo, maxSize: Size): Size {
     val scale = minOf(
         1.0,
-        PREVIEW_MAX_WIDTH.toDouble() / info.displayWidth,
-        PREVIEW_MAX_HEIGHT.toDouble() / info.displayHeight,
+        maxSize.width.toDouble() / info.displayWidth,
+        maxSize.height.toDouble() / info.displayHeight,
     )
     return Size(
         width = ((info.displayWidth * scale).roundToInt() / 2 * 2).coerceAtLeast(2),
