@@ -36,6 +36,7 @@ import java.awt.Desktop
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
 import java.io.File
+import java.nio.file.Files
 import kotlin.math.roundToInt
 
 private const val PREVIEW_MAX_WIDTH = 960
@@ -254,7 +255,7 @@ class MainViewModel(
         val paths = (viewModelState.value.ffmpeg as? FFmpegState.Available)?.paths ?: return
         val loaded = viewModelState.value.source as? SourceState.Loaded ?: return
         if (viewModelState.value.export is ExportState.Running) return
-        if (output.absoluteFile == loaded.file.absoluteFile) {
+        if (isSameFile(output, loaded.file)) {
             viewModelState.update { it.copy(export = ExportState.Failed("入力ファイルと同じファイルには書き出せません")) }
             return
         }
@@ -519,6 +520,15 @@ class MainViewModel(
             SizeEstimateState.Calculating -> "推定サイズ: 計算中…"
             is SizeEstimateState.Estimated -> "推定サイズ: 約 ${formatBytes(sizeEstimate.bytes)}"
             SizeEstimateState.Failed -> "推定サイズ: 計算できませんでした"
+        }
+    }
+
+    // ジャンクションやUNCパスなど別名経由でも入力ファイルを上書きしないよう、実体で比較する
+    private fun isSameFile(a: File, b: File): Boolean {
+        return if (a.exists() && b.exists()) {
+            Files.isSameFile(a.toPath(), b.toPath())
+        } else {
+            a.absoluteFile == b.absoluteFile
         }
     }
 
