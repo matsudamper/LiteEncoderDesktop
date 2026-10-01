@@ -1,6 +1,7 @@
 package net.matsudamper.liteencoder.ui
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
@@ -192,7 +193,7 @@ private fun SidePanel(
             style = MaterialTheme.typography.titleLarge,
             maxLines = 1,
             softWrap = false,
-            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            modifier = Modifier.horizontalScroll(remember(source.fileName) { ScrollState(initial = 0) }),
         )
         val sourceState = source.state
         if (sourceState is MainUiState.SourceState.Loaded) {
