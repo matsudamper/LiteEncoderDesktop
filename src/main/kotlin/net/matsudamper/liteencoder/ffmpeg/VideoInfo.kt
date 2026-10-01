@@ -1,5 +1,8 @@
 package net.matsudamper.liteencoder.ffmpeg
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -15,7 +18,17 @@ data class VideoInfo(
 }
 
 object VideoProbe {
-    fun probe(paths: FFmpegPaths, file: File): Result<VideoInfo> = runCatching {
+    suspend fun probe(paths: FFmpegPaths, file: File): Result<VideoInfo> = withContext(Dispatchers.IO) {
+        try {
+            Result.success(parse(readProbeOutput(paths, file)))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    private suspend fun readProbeOutput(paths: FFmpegPaths, file: File): String {
         val process = ProcessBuilder(
             paths.ffprobe,
             "-v", "error",
@@ -26,9 +39,18 @@ object VideoProbe {
             "-of", "flat",
             file.absolutePath,
         ).redirectErrorStream(true).start()
-        val output = process.inputStream.bufferedReader().readText()
-        check(process.waitFor() == 0) { output.ifBlank { "ffprobe failed" } }
+        try {
+            return destroyOnCancellation(process) {
+                val output = process.inputStream.bufferedReader().readText()
+                check(process.waitFor() == 0) { output.ifBlank { "ffprobe failed" } }
+                output
+            }
+        } finally {
+            process.destroyForcibly()
+        }
+    }
 
+    private fun parse(output: String): VideoInfo {
         val values = output.lineSequence()
             .mapNotNull { line ->
                 val index = line.indexOf('=')
@@ -50,7 +72,7 @@ object VideoProbe {
             ?: 30.0
         val bitRate = (find("stream.0.bit_rate") ?: find("format.bit_rate"))?.toLongOrNull()
 
-        VideoInfo(
+        return VideoInfo(
             displayWidth = if (rotated) rawHeight else rawWidth,
             displayHeight = if (rotated) rawWidth else rawHeight,
             frameRate = frameRate,

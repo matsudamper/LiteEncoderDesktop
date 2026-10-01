@@ -21,34 +21,12 @@ object Encoder {
     ): Result<Unit> = withContext(Dispatchers.IO) {
         // キャンセル・失敗時に既存の出力ファイルを壊さないよう、一時ファイルに書き出してから置き換える
         val temp = File(output.parentFile, ".${output.name}.${System.currentTimeMillis()}.tmp")
-        var process: Process? = null
         try {
-            process = ProcessBuilder(buildCommand(paths, input, temp, info, settings)).start()
-            val errorLines = ArrayDeque<String>()
-            val errorReader = thread(isDaemon = true) {
-                process.errorStream.bufferedReader().forEachLine { line ->
-                    synchronized(errorLines) {
-                        errorLines.addLast(line)
-                        if (errorLines.size > 20) errorLines.removeFirst()
-                    }
-                }
-            }
-            val durationUs = (info.durationSeconds * 1_000_000).coerceAtLeast(1.0)
-            process.inputStream.bufferedReader().useLines { lines ->
-                for (line in lines) {
-                    currentCoroutineContext().ensureActive()
-                    val value = line.substringAfter("out_time_us=", "")
-                    if (value.isNotEmpty()) {
-                        value.toLongOrNull()?.let { onProgressRatio((it / durationUs).toFloat().coerceIn(0f, 1f)) }
-                    }
-                }
-            }
-            val exitCode = process.waitFor()
-            errorReader.join(1_000)
-            if (exitCode != 0) {
-                val message = synchronized(errorLines) { errorLines.joinToString("\n") }
-                error(message.ifBlank { "ffmpeg exited with $exitCode" })
-            }
+            runFFmpeg(
+                command = buildCommand(paths, input, temp, info, settings),
+                durationSeconds = info.durationSeconds,
+                onProgressRatio = onProgressRatio,
+            )
             Files.move(temp.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING)
             onProgressRatio(1f)
             Result.success(Unit)
@@ -57,11 +35,48 @@ object Encoder {
         } catch (e: Exception) {
             Result.failure(e)
         } finally {
-            process?.let {
-                it.destroyForcibly()
-                it.waitFor()
-            }
             temp.delete()
+        }
+    }
+
+    private suspend fun runFFmpeg(
+        command: List<String>,
+        durationSeconds: Double,
+        onProgressRatio: suspend (Float) -> Unit,
+    ) {
+        val process = ProcessBuilder(command).start()
+        try {
+            destroyOnCancellation(process) {
+                val errorLines = ArrayDeque<String>()
+                val errorReader = thread(isDaemon = true) {
+                    process.errorStream.bufferedReader().forEachLine { line ->
+                        synchronized(errorLines) {
+                            errorLines.addLast(line)
+                            if (errorLines.size > 20) errorLines.removeFirst()
+                        }
+                    }
+                }
+                val durationUs = (durationSeconds * 1_000_000).coerceAtLeast(1.0)
+                process.inputStream.bufferedReader().useLines { lines ->
+                    for (line in lines) {
+                        currentCoroutineContext().ensureActive()
+                        val outTimeUs = line.substringAfter("out_time_us=", "").toLongOrNull()
+                        if (outTimeUs != null) {
+                            onProgressRatio((outTimeUs / durationUs).toFloat().coerceIn(0f, 1f))
+                        }
+                    }
+                }
+                currentCoroutineContext().ensureActive()
+                val exitCode = process.waitFor()
+                errorReader.join(1_000)
+                if (exitCode != 0) {
+                    val message = synchronized(errorLines) { errorLines.joinToString("\n") }
+                    error(message.ifBlank { "ffmpeg exited with $exitCode" })
+                }
+            }
+        } finally {
+            process.destroyForcibly()
+            process.waitFor()
         }
     }
 
@@ -77,7 +92,10 @@ object Encoder {
         // 元のサイズでも奇数サイズはlibx264/yuv420pで扱えないため、常に偶数サイズへスケールする
         val size = settings.resolution.outputSize(info)
         addAll(listOf("-vf", "scale=${size.width}:${size.height}"))
-        settings.frameRate.fps?.let { addAll(listOf("-r", it.toString())) }
+        val fps = settings.frameRate.fps
+        if (fps != null) {
+            addAll(listOf("-r", fps.toString()))
+        }
         addAll(listOf("-c:v", "libx264", "-preset", "medium", "-pix_fmt", "yuv420p"))
         when (val bitRate = settings.bitRate) {
             is BitRateSetting.Quality -> addAll(listOf("-crf", bitRate.crf.toString()))
