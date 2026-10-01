@@ -32,7 +32,10 @@ internal fun VideoPreview(
             contentAlignment = Alignment.Center,
         ) {
             val frame = uiState.frame
-            if (frame != null) {
+            val errorMessage = uiState.errorMessage
+            if (errorMessage != null) {
+                Text(errorMessage, color = MaterialTheme.colorScheme.error)
+            } else if (frame != null) {
                 Image(
                     bitmap = frame,
                     contentDescription = null,

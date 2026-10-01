@@ -2,12 +2,14 @@ package net.matsudamper.liteencoder.ui
 
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.graphics.ImageBitmap
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -278,23 +280,18 @@ class MainViewModel(
         val start = if (position >= duration - 0.1) 0.0 else position
         viewModelState.update { it.copy(preview = it.preview.copy(isPlaying = true)) }
         playJob = scope.launch {
-            FrameDecoder.decode(
-                paths = paths,
-                file = loaded.file,
-                startSeconds = start,
-                size = loaded.previewSize,
-                frameRate = loaded.info.frameRate,
-                throttleToPlaybackSpeed = true,
-                maxFrames = null,
-            ).collect { frame ->
-                viewModelState.update {
-                    it.copy(
-                        preview = it.preview.copy(
-                            frame = frame.image,
-                            positionSeconds = frame.positionSeconds.coerceAtMost(duration),
-                        ),
-                    )
-                }
+            collectPreviewFrames(
+                FrameDecoder.decode(
+                    paths = paths,
+                    file = loaded.file,
+                    startSeconds = start,
+                    size = loaded.previewSize,
+                    frameRate = loaded.info.frameRate,
+                    throttleToPlaybackSpeed = true,
+                    maxFrames = null,
+                ),
+            ) { preview, frame ->
+                preview.copy(frame = frame.image, positionSeconds = frame.positionSeconds.coerceAtMost(duration))
             }
             viewModelState.update { it.copy(preview = it.preview.copy(isPlaying = false)) }
         }
@@ -312,16 +309,35 @@ class MainViewModel(
         seekJob?.cancel()
         seekJob = scope.launch {
             delay(debounceMillis)
-            FrameDecoder.decode(
-                paths = paths,
-                file = loaded.file,
-                startSeconds = seconds,
-                size = loaded.previewSize,
-                frameRate = loaded.info.frameRate,
-                throttleToPlaybackSpeed = false,
-                maxFrames = 1,
-            ).collect { frame ->
-                viewModelState.update { it.copy(preview = it.preview.copy(frame = frame.image)) }
+            collectPreviewFrames(
+                FrameDecoder.decode(
+                    paths = paths,
+                    file = loaded.file,
+                    startSeconds = seconds,
+                    size = loaded.previewSize,
+                    frameRate = loaded.info.frameRate,
+                    throttleToPlaybackSpeed = false,
+                    maxFrames = 1,
+                ),
+            ) { preview, frame ->
+                preview.copy(frame = frame.image)
+            }
+        }
+    }
+
+    private suspend fun collectPreviewFrames(
+        frames: Flow<FrameDecoder.Frame>,
+        applyFrame: (PreviewState, FrameDecoder.Frame) -> PreviewState,
+    ) {
+        try {
+            frames.collect { frame ->
+                viewModelState.update { it.copy(preview = applyFrame(it.preview, frame).copy(errorMessage = null)) }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            viewModelState.update {
+                it.copy(preview = it.preview.copy(isPlaying = false, errorMessage = e.message ?: "プレビューを表示できません"))
             }
         }
     }
@@ -366,6 +382,7 @@ class MainViewModel(
     private fun createPreviewUiState(preview: PreviewState, info: VideoInfo): PreviewUiState {
         return PreviewUiState(
             frame = preview.frame,
+            errorMessage = preview.errorMessage,
             positionSeconds = preview.positionSeconds.toFloat(),
             durationSeconds = info.durationSeconds.toFloat().coerceAtLeast(0.01f),
             timeText = "${formatTime(preview.positionSeconds)} / ${formatTime(info.durationSeconds)}",
@@ -496,9 +513,10 @@ class MainViewModel(
         val frame: ImageBitmap?,
         val positionSeconds: Double,
         val isPlaying: Boolean,
+        val errorMessage: String?,
     ) {
         companion object {
-            val Initial = PreviewState(frame = null, positionSeconds = 0.0, isPlaying = false)
+            val Initial = PreviewState(frame = null, positionSeconds = 0.0, isPlaying = false, errorMessage = null)
         }
     }
 }

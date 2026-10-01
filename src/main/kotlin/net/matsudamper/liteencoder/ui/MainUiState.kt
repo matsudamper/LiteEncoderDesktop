@@ -54,6 +54,7 @@ data class MainUiState(
 @Immutable
 data class PreviewUiState(
     val frame: ImageBitmap?,
+    val errorMessage: String?,
     val positionSeconds: Float,
     val durationSeconds: Float,
     val timeText: String,

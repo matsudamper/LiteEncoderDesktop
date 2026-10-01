@@ -66,6 +66,9 @@ object FrameDecoder {
                     emit(Frame(image = image, positionSeconds = startSeconds + index / frameRate))
                     index++
                 }
+                val exitCode = process.waitFor()
+                currentCoroutineContext().ensureActive()
+                check(exitCode == 0 || index > 0) { "プレビューのデコードに失敗しました (exit code: $exitCode)" }
             }
         } finally {
             process.destroyForcibly()
