@@ -110,6 +110,7 @@ data class OptionUiState(
 @Immutable
 data class ExportUiState(
     val status: Status,
+    val estimatedSizeText: String?,
     val event: Event,
 ) {
     sealed interface Status {

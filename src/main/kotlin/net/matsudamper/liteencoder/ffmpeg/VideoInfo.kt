@@ -13,6 +13,7 @@ data class VideoInfo(
     val frameRate: Double,
     val durationSeconds: Double,
     val bitRateKbps: Int?,
+    val hasAudio: Boolean,
 ) {
     val shortSide: Int get() = minOf(displayWidth, displayHeight)
 }
@@ -32,9 +33,8 @@ object VideoProbe {
         val process = ProcessBuilder(
             paths.ffprobe,
             "-v", "error",
-            "-select_streams", "v:0",
             "-show_entries",
-            "stream=width,height,avg_frame_rate,r_frame_rate,bit_rate:" +
+            "stream=codec_type,width,height,avg_frame_rate,r_frame_rate,bit_rate:" +
                 "stream_side_data=rotation:stream_tags=rotate:format=duration,bit_rate",
             "-of", "flat",
             file.absolutePath,
@@ -58,26 +58,35 @@ object VideoProbe {
                 line.substring(0, index) to line.substring(index + 1).trim('"')
             }
             .toMap()
-        fun find(suffix: String): String? = values.entries
-            .firstOrNull { it.key.endsWith(suffix) }
+        fun find(predicate: (String) -> Boolean): String? = values.entries
+            .firstOrNull { predicate(it.key) }
             ?.value
             ?.takeIf { it.isNotBlank() && it != "N/A" }
 
-        val rawWidth = checkNotNull(find("stream.0.width")?.toIntOrNull()) { "動画ストリームが見つかりません" }
-        val rawHeight = checkNotNull(find("stream.0.height")?.toIntOrNull()) { "動画ストリームが見つかりません" }
-        val rotation = (find(".rotation") ?: find("tags.rotate"))?.toDoubleOrNull()?.roundToInt() ?: 0
+        val codecTypes = values.entries.filter { it.key.endsWith(".codec_type") }
+        val videoStreamPrefix = checkNotNull(codecTypes.firstOrNull { it.value == "video" }) { "動画ストリームが見つかりません" }
+            .key
+            .removeSuffix("codec_type")
+        fun findVideo(name: String): String? = find { it == videoStreamPrefix + name }
+
+        val rawWidth = checkNotNull(findVideo("width")?.toIntOrNull()) { "動画ストリームが見つかりません" }
+        val rawHeight = checkNotNull(findVideo("height")?.toIntOrNull()) { "動画ストリームが見つかりません" }
+        val rotation = (
+            find { it.startsWith(videoStreamPrefix) && it.endsWith(".rotation") } ?: findVideo("tags.rotate")
+            )?.toDoubleOrNull()?.roundToInt() ?: 0
         val rotated = abs(rotation) % 180 == 90
-        val frameRate = parseRate(find("stream.0.avg_frame_rate"))
-            ?: parseRate(find("stream.0.r_frame_rate"))
+        val frameRate = parseRate(findVideo("avg_frame_rate"))
+            ?: parseRate(findVideo("r_frame_rate"))
             ?: 30.0
-        val bitRate = (find("stream.0.bit_rate") ?: find("format.bit_rate"))?.toLongOrNull()
+        val bitRate = (findVideo("bit_rate") ?: find { it == "format.bit_rate" })?.toLongOrNull()
 
         return VideoInfo(
             displayWidth = if (rotated) rawHeight else rawWidth,
             displayHeight = if (rotated) rawWidth else rawHeight,
             frameRate = frameRate,
-            durationSeconds = find("format.duration")?.toDoubleOrNull() ?: 0.0,
+            durationSeconds = find { it == "format.duration" }?.toDoubleOrNull() ?: 0.0,
             bitRateKbps = bitRate?.let { (it / 1000).toInt() },
+            hasAudio = codecTypes.any { it.value == "audio" },
         )
     }
 

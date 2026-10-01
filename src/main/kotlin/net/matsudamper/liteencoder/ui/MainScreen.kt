@@ -214,6 +214,10 @@ private fun SidePanel(
 @Composable
 private fun ExportSection(uiState: ExportUiState) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val estimatedSizeText = uiState.estimatedSizeText
+        if (estimatedSizeText != null) {
+            Text(estimatedSizeText, style = MaterialTheme.typography.bodyMedium)
+        }
         when (val status = uiState.status) {
             is ExportUiState.Status.Running -> {
                 Text(status.progressText)

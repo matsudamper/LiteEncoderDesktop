@@ -11,6 +11,8 @@ import java.nio.file.StandardCopyOption
 import kotlin.concurrent.thread
 
 object Encoder {
+    const val AUDIO_BIT_RATE_KBPS = 128
+
     suspend fun encode(
         paths: FFmpegPaths,
         input: File,
@@ -89,6 +91,12 @@ object Encoder {
     ): List<String> = buildList {
         addAll(listOf(paths.ffmpeg, "-y", "-hide_banner", "-nostdin", "-nostats", "-v", "error", "-progress", "pipe:1"))
         addAll(listOf("-i", input.absolutePath))
+        addAll(videoOutputArgs(info, settings))
+        addAll(listOf("-c:a", "aac", "-b:a", "${AUDIO_BIT_RATE_KBPS}k", "-movflags", "+faststart", "-f", "mp4"))
+        add(output.absolutePath)
+    }
+
+    internal fun videoOutputArgs(info: VideoInfo, settings: EncodeSettings): List<String> = buildList {
         // 元のサイズでも奇数サイズはlibx264/yuv420pで扱えないため、常に偶数サイズへスケールする
         val size = settings.resolution.outputSize(info)
         addAll(listOf("-vf", "scale=${size.width}:${size.height}"))
@@ -107,7 +115,5 @@ object Encoder {
                 ),
             )
         }
-        addAll(listOf("-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", "-f", "mp4"))
-        add(output.absolutePath)
     }
 }
