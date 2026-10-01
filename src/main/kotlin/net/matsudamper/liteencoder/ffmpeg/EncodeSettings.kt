@@ -1,6 +1,19 @@
 package net.matsudamper.liteencoder.ffmpeg
 
+import java.io.File
 import kotlin.math.roundToInt
+
+enum class OutputFormat(val label: String, val extension: String, val supportsConstantBitRate: Boolean) {
+    WebP("webp", "webp", supportsConstantBitRate = false),
+    Mp4("mp4", "mp4", supportsConstantBitRate = true),
+    ;
+
+    fun isSameFormatAs(file: File): Boolean = file.extension.equals(extension, ignoreCase = true)
+
+    companion object {
+        fun defaultFor(input: File): OutputFormat = entries.firstOrNull { it.isSameFormatAs(input) } ?: entries.first()
+    }
+}
 
 enum class ResolutionPreset(val label: String, val shortSide: Int?) {
     Original("元のサイズ", null),
@@ -52,12 +65,14 @@ sealed interface BitRateSetting {
 }
 
 data class EncodeSettings(
+    val format: OutputFormat,
     val resolution: ResolutionPreset,
     val frameRate: FrameRatePreset,
     val bitRate: BitRateSetting,
 ) {
     companion object {
         val Initial = EncodeSettings(
+            format = OutputFormat.entries.first(),
             resolution = ResolutionPreset.Original,
             frameRate = FrameRatePreset.Original,
             bitRate = BitRateSetting.Quality(BitRateSetting.DEFAULT_CRF),
