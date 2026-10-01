@@ -13,21 +13,17 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import net.matsudamper.liteencoder.ffmpeg.FFmpegLocator
-import java.awt.Toolkit
-import java.awt.datatransfer.StringSelection
 
 @Composable
-fun FFmpegMissingScreen(onRetry: () -> Unit) {
-    var copied by remember { mutableStateOf(false) }
+internal fun FFmpegMissingScreen(
+    uiState: MainUiState.Content.FFmpegMissing,
+    onCopyClick: () -> Unit,
+    onRetryClick: () -> Unit,
+) {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -42,20 +38,14 @@ fun FFmpegMissingScreen(onRetry: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 SelectionContainer(modifier = Modifier.weight(1f)) {
-                    Text(FFmpegLocator.WINGET_INSTALL_COMMAND, fontFamily = FontFamily.Monospace)
+                    Text(uiState.installCommand, fontFamily = FontFamily.Monospace)
                 }
-                OutlinedButton(
-                    onClick = {
-                        Toolkit.getDefaultToolkit().systemClipboard
-                            .setContents(StringSelection(FFmpegLocator.WINGET_INSTALL_COMMAND), null)
-                        copied = true
-                    },
-                ) {
-                    Text(if (copied) "コピーしました" else "コピー")
+                OutlinedButton(onClick = onCopyClick) {
+                    Text(if (uiState.isInstallCommandCopied) "コピーしました" else "コピー")
                 }
             }
         }
-        Button(onClick = onRetry) {
+        Button(onClick = onRetryClick) {
             Text("再チェック")
         }
     }

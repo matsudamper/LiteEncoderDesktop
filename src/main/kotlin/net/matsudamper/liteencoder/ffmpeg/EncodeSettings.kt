@@ -52,7 +52,15 @@ sealed interface BitRateSetting {
 }
 
 data class EncodeSettings(
-    val resolution: ResolutionPreset = ResolutionPreset.Original,
-    val frameRate: FrameRatePreset = FrameRatePreset.Original,
-    val bitRate: BitRateSetting = BitRateSetting.Quality(BitRateSetting.DEFAULT_CRF),
-)
+    val resolution: ResolutionPreset,
+    val frameRate: FrameRatePreset,
+    val bitRate: BitRateSetting,
+) {
+    companion object {
+        val Initial = EncodeSettings(
+            resolution = ResolutionPreset.Original,
+            frameRate = FrameRatePreset.Original,
+            bitRate = BitRateSetting.Quality(BitRateSetting.DEFAULT_CRF),
+        )
+    }
+}

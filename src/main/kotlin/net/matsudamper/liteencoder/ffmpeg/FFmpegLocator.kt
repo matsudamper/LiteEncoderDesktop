@@ -15,7 +15,8 @@ object FFmpegLocator {
         val candidates = buildList {
             add(FFmpegPaths(ffmpeg = "ffmpeg", ffprobe = "ffprobe"))
             // winget直後は起動中プロセスのPATHが更新されないため、wingetのLinksディレクトリも探す
-            System.getenv("LOCALAPPDATA")?.let { localAppData ->
+            val localAppData = System.getenv("LOCALAPPDATA")
+            if (localAppData != null) {
                 val links = File(localAppData, "Microsoft\\WinGet\\Links")
                 add(
                     FFmpegPaths(

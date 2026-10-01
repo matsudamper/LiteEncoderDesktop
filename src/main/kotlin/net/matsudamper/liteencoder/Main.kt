@@ -13,7 +13,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import io.github.vinceglb.filekit.FileKit
-import net.matsudamper.liteencoder.ui.App
+import net.matsudamper.liteencoder.ui.MainScreenRoot
 
 fun main() {
     FileKit.init(appId = "LiteEncoderDesktop")
@@ -25,7 +25,7 @@ fun main() {
         ) {
             MaterialTheme(colorScheme = if (isSystemInDarkTheme()) darkColorScheme() else lightColorScheme()) {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    App(window = window)
+                    MainScreenRoot(window = window)
                 }
             }
         }

@@ -31,14 +31,16 @@ object FrameDecoder {
         size: Size,
         frameRate: Double,
         throttleToPlaybackSpeed: Boolean,
-        maxFrames: Int? = null,
+        maxFrames: Int?,
     ): Flow<Frame> = flow {
         val command = buildList {
             addAll(listOf(paths.ffmpeg, "-v", "error", "-nostdin"))
             if (throttleToPlaybackSpeed) add("-re")
             addAll(listOf("-ss", String.format(Locale.US, "%.3f", startSeconds), "-i", file.absolutePath))
             addAll(listOf("-an", "-sn", "-vf", "scale=${size.width}:${size.height}"))
-            maxFrames?.let { addAll(listOf("-frames:v", it.toString())) }
+            if (maxFrames != null) {
+                addAll(listOf("-frames:v", maxFrames.toString()))
+            }
             addAll(listOf("-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1"))
         }
         val process = ProcessBuilder(command)

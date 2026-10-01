@@ -26,11 +26,11 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
@@ -38,90 +38,73 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.draganddrop.awtTransferable
-
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import io.github.vinceglb.filekit.FileKit
-import io.github.vinceglb.filekit.dialogs.FileKitDialogParent
-import io.github.vinceglb.filekit.dialogs.FileKitDialogSettings
-import io.github.vinceglb.filekit.dialogs.FileKitType
-import io.github.vinceglb.filekit.dialogs.openFilePicker
-import io.github.vinceglb.filekit.dialogs.openFileSaver
-import kotlinx.coroutines.launch
-import java.awt.Desktop
 import java.awt.Window
 import java.awt.datatransfer.DataFlavor
+import java.awt.datatransfer.Transferable
 import java.io.File
 
 @Composable
-fun App(window: Window) {
-    val scope = rememberCoroutineScope()
-    val state = remember { AppState(scope) }
-    LaunchedEffect(Unit) { state.checkFFmpeg() }
+fun MainScreenRoot(window: Window) {
+    val viewModel = remember(window) { MainViewModel(FileKitDialogs(window)) }
+    DisposableEffect(viewModel) {
+        onDispose { viewModel.dispose() }
+    }
+    val uiState by viewModel.uiState.collectAsState()
+    MainScreen(uiState = uiState)
+}
 
-    when (val ffmpeg = state.ffmpegState) {
-        FFmpegState.Checking -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+@Composable
+internal fun MainScreen(uiState: MainUiState) {
+    when (val content = uiState.content) {
+        MainUiState.Content.CheckingFFmpeg -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator()
         }
 
-        FFmpegState.Missing -> FFmpegMissingScreen(onRetry = state::checkFFmpeg)
+        is MainUiState.Content.FFmpegMissing -> FFmpegMissingScreen(
+            uiState = content,
+            onCopyClick = uiState.event::onCopyInstallCommandClick,
+            onRetryClick = uiState.event::onRetryFFmpegCheckClick,
+        )
 
-        is FFmpegState.Available -> {
-            val dialogSettings = remember(window) {
-                FileKitDialogSettings(parent = FileKitDialogParent.awt(window))
-            }
-            MainScreen(
-                state = state,
-                onPickFile = {
-                    scope.launch {
-                        FileKit.openFilePicker(type = FileKitType.Video, dialogSettings = dialogSettings)
-                            ?.let { state.openFile(it.file) }
-                    }
-                },
-                onExport = { source ->
-                    scope.launch {
-                        FileKit.openFileSaver(
-                            suggestedName = "${source.nameWithoutExtension}_encoded",
-                            extension = "mp4",
-                            directory = source.parentFile?.let { io.github.vinceglb.filekit.PlatformFile(it) },
-                            dialogSettings = dialogSettings,
-                        )?.let { state.export(it.file) }
-                    }
-                },
-                paths = ffmpeg,
-            )
-        }
+        is MainUiState.Content.Ready -> ReadyScreen(
+            uiState = content,
+            mainEvent = uiState.event,
+        )
     }
 }
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-private fun MainScreen(
-    state: AppState,
-    paths: FFmpegState.Available,
-    onPickFile: () -> Unit,
-    onExport: (File) -> Unit,
+private fun ReadyScreen(
+    uiState: MainUiState.Content.Ready,
+    mainEvent: MainUiState.Event,
 ) {
-    var dragging by remember { mutableStateOf(false) }
-    val dropTarget = remember(state) {
+    var isDragging by remember { mutableStateOf(false) }
+    val dropTarget = remember(mainEvent) {
         object : DragAndDropTarget {
             override fun onEntered(event: DragAndDropEvent) {
-                dragging = true
+                isDragging = true
             }
 
             override fun onExited(event: DragAndDropEvent) {
-                dragging = false
+                isDragging = false
             }
 
             override fun onEnded(event: DragAndDropEvent) {
-                dragging = false
+                isDragging = false
             }
 
             override fun onDrop(event: DragAndDropEvent): Boolean {
-                dragging = false
-                val file = event.awtTransferable.droppedFiles().firstOrNull() ?: return false
-                state.openFile(file)
-                return true
+                isDragging = false
+                val file = event.awtTransferable.droppedFiles().firstOrNull()
+                return if (file != null) {
+                    mainEvent.onFileDropped(file)
+                    true
+                } else {
+                    false
+                }
             }
         }
     }
@@ -130,43 +113,41 @@ private fun MainScreen(
         modifier = Modifier
             .fillMaxSize()
             .dragAndDropTarget(
-                shouldStartDragAndDrop = { event ->
-                    !state.isExporting &&
-                        event.awtTransferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)
+                shouldStartDragAndDrop = { dragEvent ->
+                    uiState.isFileDropEnabled &&
+                        dragEvent.awtTransferable.isDataFlavorSupported(DataFlavor.javaFileListFlavor)
                 },
                 target = dropTarget,
             ),
     ) {
-        when (val source = state.source) {
-            null -> DropZone(onPickFile = onPickFile, modifier = Modifier.fillMaxSize().padding(24.dp))
-            else -> Row(modifier = Modifier.fillMaxSize()) {
+        val source = uiState.source
+        if (source == null) {
+            DropZone(onPickFileClick = mainEvent::onPickFileClick, modifier = Modifier.fillMaxSize().padding(24.dp))
+        } else {
+            Row(modifier = Modifier.fillMaxSize()) {
                 Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(16.dp)) {
-                    when (source) {
-                        is SourceState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
-                        is SourceState.Error -> Text(
-                            "読み込みに失敗しました\n${source.message}",
+                    when (val sourceState = source.state) {
+                        MainUiState.SourceState.Loading -> CircularProgressIndicator(Modifier.align(Alignment.Center))
+                        is MainUiState.SourceState.Error -> Text(
+                            "読み込みに失敗しました\n${sourceState.message}",
                             color = MaterialTheme.colorScheme.error,
                             modifier = Modifier.align(Alignment.Center),
                         )
 
-                        is SourceState.Loaded -> VideoPreview(
-                            paths = paths.paths,
-                            file = source.file,
-                            info = source.info,
+                        is MainUiState.SourceState.Loaded -> VideoPreview(
+                            uiState = sourceState.preview,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }
                 }
                 SidePanel(
-                    state = state,
                     source = source,
-                    onPickFile = onPickFile,
-                    onExport = onExport,
+                    onPickFileClick = mainEvent::onPickFileClick,
                     modifier = Modifier.width(380.dp).fillMaxHeight(),
                 )
             }
         }
-        if (dragging) {
+        if (isDragging) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -181,7 +162,7 @@ private fun MainScreen(
 }
 
 @Composable
-private fun DropZone(onPickFile: () -> Unit, modifier: Modifier = Modifier) {
+private fun DropZone(onPickFileClick: () -> Unit, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier.border(
             BorderStroke(2.dp, MaterialTheme.colorScheme.outline),
@@ -192,7 +173,7 @@ private fun DropZone(onPickFile: () -> Unit, modifier: Modifier = Modifier) {
     ) {
         Text("動画ファイルをここにドロップ", style = MaterialTheme.typography.headlineSmall)
         Text("または", style = MaterialTheme.typography.bodyMedium)
-        Button(onClick = onPickFile) {
+        Button(onClick = onPickFileClick) {
             Text("ファイルを選択")
         }
     }
@@ -200,109 +181,94 @@ private fun DropZone(onPickFile: () -> Unit, modifier: Modifier = Modifier) {
 
 @Composable
 private fun SidePanel(
-    state: AppState,
-    source: SourceState,
-    onPickFile: () -> Unit,
-    onExport: (File) -> Unit,
+    source: MainUiState.Source,
+    onPickFileClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            source.file.name,
+            source.fileName,
             style = MaterialTheme.typography.titleLarge,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        if (source is SourceState.Loaded) {
-            val info = source.info
-            Text(
-                "${info.displayWidth} × ${info.displayHeight} / %.2f fps / ${formatTime(info.durationSeconds)}".format(info.frameRate),
-                style = MaterialTheme.typography.bodyMedium,
-            )
+        val sourceState = source.state
+        if (sourceState is MainUiState.SourceState.Loaded) {
+            Text(sourceState.summary, style = MaterialTheme.typography.bodyMedium)
         }
-        OutlinedButton(onClick = onPickFile, enabled = !state.isExporting) {
+        OutlinedButton(onClick = onPickFileClick, enabled = source.isOpenAnotherFileEnabled) {
             Text("別のファイルを開く")
         }
         HorizontalDivider()
-        if (source is SourceState.Loaded) {
+        if (sourceState is MainUiState.SourceState.Loaded) {
             EncodeSettingsPanel(
-                info = source.info,
-                settings = state.settings,
-                enabled = !state.isExporting,
-                onSettingsChange = { state.settings = it },
+                uiState = sourceState.settings,
                 modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             )
             HorizontalDivider()
-            ExportSection(
-                exportState = state.exportState,
-                onExport = { onExport(source.file) },
-                onCancel = state::cancelExport,
-            )
+            ExportSection(uiState = sourceState.export)
         }
     }
 }
 
 @Composable
-private fun ExportSection(
-    exportState: ExportState,
-    onExport: () -> Unit,
-    onCancel: () -> Unit,
-) {
+private fun ExportSection(uiState: ExportUiState) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        when (exportState) {
-            is ExportState.Running -> {
-                Text("書き出し中… ${(exportState.progress * 100).toInt()}%")
+        when (val status = uiState.status) {
+            is ExportUiState.Status.Running -> {
+                Text(status.progressText)
                 LinearProgressIndicator(
-                    progress = { exportState.progress },
+                    progress = { status.progress },
                     modifier = Modifier.fillMaxWidth(),
                 )
-                OutlinedButton(onClick = onCancel, modifier = Modifier.fillMaxWidth()) {
+                OutlinedButton(onClick = uiState.event::onCancelClick, modifier = Modifier.fillMaxWidth()) {
                     Text("キャンセル")
                 }
-                return@Column
             }
 
-            is ExportState.Done -> Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "書き出し完了: ${exportState.output.name}",
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = { revealInExplorer(exportState.output) }) {
-                    Text("フォルダを開く")
+            is ExportUiState.Status.Done -> {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        status.message,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = uiState.event::onRevealOutputClick) {
+                        Text("フォルダを開く")
+                    }
                 }
+                ExportButton(onClick = uiState.event::onExportClick)
             }
 
-            is ExportState.Failed -> SelectionContainer {
-                Text(
-                    exportState.message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 6,
-                    overflow = TextOverflow.Ellipsis,
-                )
+            is ExportUiState.Status.Failed -> {
+                SelectionContainer {
+                    Text(
+                        status.message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 6,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                ExportButton(onClick = uiState.event::onExportClick)
             }
 
-            ExportState.Idle -> Unit
-        }
-        Button(onClick = onExport, modifier = Modifier.fillMaxWidth()) {
-            Text("書き出し")
+            ExportUiState.Status.Idle -> ExportButton(onClick = uiState.event::onExportClick)
         }
     }
 }
 
-private fun java.awt.datatransfer.Transferable.droppedFiles(): List<File> {
-    if (!isDataFlavorSupported(DataFlavor.javaFileListFlavor)) return emptyList()
+@Composable
+private fun ExportButton(onClick: () -> Unit) {
+    Button(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Text("書き出し")
+    }
+}
+
+private fun Transferable.droppedFiles(): List<File> {
+    if (!isDataFlavorSupported(DataFlavor.javaFileListFlavor)) return listOf()
     return (getTransferData(DataFlavor.javaFileListFlavor) as? List<*>)
         .orEmpty()
         .filterIsInstance<File>()
         .filter { it.isFile }
-}
-
-private fun revealInExplorer(file: File) {
-    runCatching {
-        ProcessBuilder("explorer.exe", "/select,", file.absolutePath).start()
-    }.onFailure {
-        file.parentFile?.let { Desktop.getDesktop().open(it) }
-    }
 }
