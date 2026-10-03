@@ -12,11 +12,11 @@ object SizeEstimator {
     private const val SAMPLE_COUNT = 3
     private const val SAMPLE_SECONDS = 2.0
 
-    // MP4コンテナのオーバーヘッド分として少し上乗せする
+    // コンテナのオーバーヘッド分として少し上乗せする
     private const val CONTAINER_OVERHEAD_RATIO = 1.01
 
-    fun estimateConstantBitRateBytes(info: VideoInfo, videoKbps: Int): Long {
-        val totalKbps = videoKbps + audioKbps(info)
+    fun estimateConstantBitRateBytes(info: VideoInfo, settings: EncodeSettings, videoKbps: Int): Long {
+        val totalKbps = videoKbps + Encoder.audioBitRateKbps(info, settings)
         return (totalKbps * 1000.0 / 8 * info.durationSeconds * CONTAINER_OVERHEAD_RATIO).toLong()
     }
 
@@ -37,7 +37,7 @@ object SizeEstimator {
             }
             val sampledSeconds = samples.sumOf { it.durationSeconds }
             val videoBytesPerSecond = sampledBytes / sampledSeconds
-            val audioBytesPerSecond = audioKbps(info) * 1000.0 / 8
+            val audioBytesPerSecond = Encoder.audioBitRateKbps(info, settings) * 1000.0 / 8
             val totalBytes = (videoBytesPerSecond + audioBytesPerSecond) * info.durationSeconds * CONTAINER_OVERHEAD_RATIO
             Result.success(totalBytes.toLong())
         } catch (e: CancellationException) {
@@ -46,8 +46,6 @@ object SizeEstimator {
             Result.failure(e)
         }
     }
-
-    private fun audioKbps(info: VideoInfo): Int = if (info.hasAudio) Encoder.AUDIO_BIT_RATE_KBPS else 0
 
     private fun sampleRanges(durationSeconds: Double): List<SampleRange> {
         check(durationSeconds > 0) { "動画の長さが取得できません" }
@@ -73,7 +71,11 @@ object SizeEstimator {
             addAll(listOf("-t", String.format(Locale.US, "%.3f", sample.durationSeconds)))
             addAll(listOf("-i", input.absolutePath))
             addAll(Encoder.videoOutputArgs(info, settings))
-            addAll(listOf("-an", "-sn", "-f", "h264", "pipe:1"))
+            val sampleMuxer = when (settings.format) {
+                OutputFormat.WebP -> "webp"
+                OutputFormat.Mp4 -> "h264"
+            }
+            addAll(listOf("-an", "-sn", "-f", sampleMuxer, "pipe:1"))
         }
         val process = ProcessBuilder(command)
             .redirectError(ProcessBuilder.Redirect.DISCARD)

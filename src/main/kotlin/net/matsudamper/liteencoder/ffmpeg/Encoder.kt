@@ -92,7 +92,10 @@ object Encoder {
         addAll(listOf(paths.ffmpeg, "-y", "-hide_banner", "-nostdin", "-nostats", "-v", "error", "-progress", "pipe:1"))
         addAll(listOf("-i", input.absolutePath))
         addAll(videoOutputArgs(info, settings))
-        addAll(listOf("-c:a", "aac", "-b:a", "${AUDIO_BIT_RATE_KBPS}k", "-movflags", "+faststart", "-f", "mp4"))
+        when (settings.format) {
+            OutputFormat.WebP -> addAll(listOf("-an", "-loop", "0", "-f", "webp"))
+            OutputFormat.Mp4 -> addAll(listOf("-c:a", "aac", "-b:a", "${AUDIO_BIT_RATE_KBPS}k", "-movflags", "+faststart", "-f", "mp4"))
+        }
         add(output.absolutePath)
     }
 
@@ -104,8 +107,22 @@ object Encoder {
         if (fps != null) {
             addAll(listOf("-r", fps.toString()))
         }
+        when (settings.format) {
+            OutputFormat.WebP -> addAll(webpCodecArgs(settings.bitRate))
+            OutputFormat.Mp4 -> addAll(h264CodecArgs(settings.bitRate))
+        }
+    }
+
+    internal fun audioBitRateKbps(info: VideoInfo, settings: EncodeSettings): Int {
+        return when (settings.format) {
+            OutputFormat.WebP -> 0
+            OutputFormat.Mp4 -> if (info.hasAudio) AUDIO_BIT_RATE_KBPS else 0
+        }
+    }
+
+    private fun h264CodecArgs(bitRate: BitRateSetting): List<String> = buildList {
         addAll(listOf("-c:v", "libx264", "-preset", "medium", "-pix_fmt", "yuv420p"))
-        when (val bitRate = settings.bitRate) {
+        when (bitRate) {
             is BitRateSetting.Quality -> addAll(listOf("-crf", bitRate.crf.toString()))
             is BitRateSetting.Constant -> addAll(
                 listOf(
@@ -116,4 +133,14 @@ object Encoder {
             )
         }
     }
+
+    private fun webpCodecArgs(bitRate: BitRateSetting): List<String> = buildList {
+        addAll(listOf("-c:v", "libwebp", "-lossless", "0", "-pix_fmt", "yuva420p"))
+        // libwebpはビットレート指定に対応していないため、固定ビットレートが来ても既定の品質で書き出す
+        val crf = (bitRate as? BitRateSetting.Quality)?.crf ?: BitRateSetting.DEFAULT_CRF
+        addAll(listOf("-quality", webpQualityFromCrf(crf).toString()))
+    }
+
+    // libwebpはCRFを持たないため、CRFの範囲を品質(0-100、大きいほど高画質)へ写す
+    internal fun webpQualityFromCrf(crf: Int): Int = (100 - (crf - 10) * 3).coerceIn(0, 100)
 }
