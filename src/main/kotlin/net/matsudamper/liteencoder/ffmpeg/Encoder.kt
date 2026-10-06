@@ -92,7 +92,10 @@ object Encoder {
         addAll(listOf(paths.ffmpeg, "-y", "-hide_banner", "-nostdin", "-nostats", "-v", "error", "-progress", "pipe:1"))
         addAll(listOf("-i", input.absolutePath))
         addAll(videoOutputArgs(info, settings))
-        addAll(listOf("-c:a", "aac", "-b:a", "${AUDIO_BIT_RATE_KBPS}k", "-movflags", "+faststart", "-f", "mp4"))
+        when (settings.format) {
+            OutputFormat.WebM -> addAll(listOf("-c:a", "libopus", "-b:a", "${AUDIO_BIT_RATE_KBPS}k", "-f", "webm"))
+            OutputFormat.Mp4 -> addAll(listOf("-c:a", "aac", "-b:a", "${AUDIO_BIT_RATE_KBPS}k", "-movflags", "+faststart", "-f", "mp4"))
+        }
         add(output.absolutePath)
     }
 
@@ -104,8 +107,15 @@ object Encoder {
         if (fps != null) {
             addAll(listOf("-r", fps.toString()))
         }
+        when (settings.format) {
+            OutputFormat.WebM -> addAll(vp9CodecArgs(settings.bitRate))
+            OutputFormat.Mp4 -> addAll(h264CodecArgs(settings.bitRate))
+        }
+    }
+
+    private fun h264CodecArgs(bitRate: BitRateSetting): List<String> = buildList {
         addAll(listOf("-c:v", "libx264", "-preset", "medium", "-pix_fmt", "yuv420p"))
-        when (val bitRate = settings.bitRate) {
+        when (bitRate) {
             is BitRateSetting.Quality -> addAll(listOf("-crf", bitRate.crf.toString()))
             is BitRateSetting.Constant -> addAll(
                 listOf(
@@ -116,4 +126,22 @@ object Encoder {
             )
         }
     }
+
+    private fun vp9CodecArgs(bitRate: BitRateSetting): List<String> = buildList {
+        addAll(listOf("-c:v", "libvpx-vp9", "-deadline", "good", "-cpu-used", "4", "-row-mt", "1", "-pix_fmt", "yuv420p"))
+        when (bitRate) {
+            // VP9は-b:v 0を付けないとCRFが上限ビットレート付きの制約付き品質モードになる
+            is BitRateSetting.Quality -> addAll(listOf("-crf", vp9CrfFromX264Crf(bitRate.crf).toString(), "-b:v", "0"))
+            is BitRateSetting.Constant -> addAll(
+                listOf(
+                    "-b:v", "${bitRate.kbps}k",
+                    "-maxrate", "${bitRate.kbps}k",
+                    "-bufsize", "${bitRate.kbps * 2}k",
+                ),
+            )
+        }
+    }
+
+    // UIのCRFはx264基準(0-51)のため、同程度の画質になるようVP9のCRF(0-63)へずらす
+    private fun vp9CrfFromX264Crf(crf: Int): Int = (crf + 10).coerceIn(0, 63)
 }

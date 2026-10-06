@@ -21,6 +21,10 @@ internal fun EncodeSettingsPanel(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Section("形式") {
+            OptionChips(options = uiState.formatOptions, isEnabled = uiState.isEnabled)
+        }
+
         Section("サイズ（比率維持）") {
             OptionChips(options = uiState.resolutionOptions, isEnabled = uiState.isEnabled)
             Text(uiState.outputSizeText, style = MaterialTheme.typography.bodySmall)

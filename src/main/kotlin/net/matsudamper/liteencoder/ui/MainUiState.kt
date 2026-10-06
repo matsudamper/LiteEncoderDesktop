@@ -71,6 +71,7 @@ data class PreviewUiState(
 @Immutable
 data class EncodeSettingsUiState(
     val isEnabled: Boolean,
+    val formatOptions: List<OptionUiState>,
     val resolutionOptions: List<OptionUiState>,
     val outputSizeText: String,
     val frameRateOptions: List<OptionUiState>,

@@ -12,7 +12,7 @@ object SizeEstimator {
     private const val SAMPLE_COUNT = 3
     private const val SAMPLE_SECONDS = 2.0
 
-    // MP4コンテナのオーバーヘッド分として少し上乗せする
+    // コンテナのオーバーヘッド分として少し上乗せする
     private const val CONTAINER_OVERHEAD_RATIO = 1.01
 
     fun estimateConstantBitRateBytes(info: VideoInfo, videoKbps: Int): Long {
@@ -73,7 +73,11 @@ object SizeEstimator {
             addAll(listOf("-t", String.format(Locale.US, "%.3f", sample.durationSeconds)))
             addAll(listOf("-i", input.absolutePath))
             addAll(Encoder.videoOutputArgs(info, settings))
-            addAll(listOf("-an", "-sn", "-f", "h264", "pipe:1"))
+            val sampleMuxer = when (settings.format) {
+                OutputFormat.WebM -> "webm"
+                OutputFormat.Mp4 -> "h264"
+            }
+            addAll(listOf("-an", "-sn", "-f", sampleMuxer, "pipe:1"))
         }
         val process = ProcessBuilder(command)
             .redirectError(ProcessBuilder.Redirect.DISCARD)

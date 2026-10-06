@@ -27,6 +27,7 @@ import net.matsudamper.liteencoder.ffmpeg.FFmpegLocator
 import net.matsudamper.liteencoder.ffmpeg.FFmpegPaths
 import net.matsudamper.liteencoder.ffmpeg.FrameDecoder
 import net.matsudamper.liteencoder.ffmpeg.FrameRatePreset
+import net.matsudamper.liteencoder.ffmpeg.OutputFormat
 import net.matsudamper.liteencoder.ffmpeg.ResolutionPreset
 import net.matsudamper.liteencoder.ffmpeg.Size
 import net.matsudamper.liteencoder.ffmpeg.SizeEstimator
@@ -137,6 +138,7 @@ class MainViewModel(
             scope.launch {
                 val output = fileDialogs.pickExportDestination(
                     suggestedName = "${loaded.file.nameWithoutExtension}_encoded",
+                    extension = viewModelState.value.settings.format.extension,
                     directory = loaded.file.parentFile,
                 )
                 if (output != null) {
@@ -154,6 +156,12 @@ class MainViewModel(
         override fun onRevealOutputClick() {
             val done = viewModelState.value.export as? ExportState.Done ?: return
             revealInExplorer(done.output)
+        }
+    }
+
+    private val formatOptionEvents = OutputFormat.entries.associateWith { format ->
+        OptionUiState.Event {
+            viewModelState.update { it.copy(settings = it.settings.copy(format = format)) }
         }
     }
 
@@ -233,7 +241,7 @@ class MainViewModel(
         viewModelState.update {
             it.copy(
                 source = SourceState.Loading(file),
-                settings = EncodeSettings.Initial,
+                settings = EncodeSettings.Initial.copy(format = OutputFormat.defaultFor(file)),
                 customBitRateText = "",
                 export = ExportState.Idle,
                 preview = PreviewState.Initial,
@@ -432,7 +440,7 @@ class MainViewModel(
                     formatTime(source.info.durationSeconds),
                 ),
                 preview = createPreviewUiState(state.preview, source.info),
-                settings = createSettingsUiState(state, source.info),
+                settings = createSettingsUiState(state, source.file, source.info),
                 export = ExportUiState(
                     status = createExportStatus(state.export),
                     estimatedSizeText = createEstimatedSizeText(state.sizeEstimate),
@@ -459,12 +467,20 @@ class MainViewModel(
         )
     }
 
-    private fun createSettingsUiState(state: ViewModelState, info: VideoInfo): EncodeSettingsUiState {
+    private fun createSettingsUiState(state: ViewModelState, input: File, info: VideoInfo): EncodeSettingsUiState {
         val settings = state.settings
         val outputSize = settings.resolution.outputSize(info)
         val bitRate = settings.bitRate
         return EncodeSettingsUiState(
             isEnabled = state.export !is ExportState.Running,
+            formatOptions = OutputFormat.entries.map { format ->
+                OptionUiState(
+                    label = if (format.isSameFormatAs(input)) "${format.label}(オリジナル)" else format.label,
+                    isSelected = settings.format == format,
+                    isEnabled = true,
+                    event = formatOptionEvents.getValue(format),
+                )
+            },
             resolutionOptions = ResolutionPreset.entries.map { preset ->
                 OptionUiState(
                     label = preset.label,
