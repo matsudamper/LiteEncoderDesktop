@@ -13,8 +13,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
@@ -58,7 +56,6 @@ class MainViewModel(
             customBitRateText = "",
             export = ExportState.Idle,
             preview = PreviewState.Initial,
-            sizeEstimate = SizeEstimateState.None,
         ),
     )
 
@@ -195,19 +192,6 @@ class MainViewModel(
 
     init {
         checkFFmpeg()
-        scope.launch {
-            viewModelState
-                .map { state ->
-                    val loaded = state.source as? SourceState.Loaded
-                    if (loaded != null) {
-                        EstimateInput(loaded.file, loaded.info, state.settings, state.export is ExportState.Running)
-                    } else {
-                        null
-                    }
-                }
-                .distinctUntilChanged()
-                .collectLatest { input -> estimateSize(input) }
-        }
     }
 
     fun dispose() {
@@ -285,48 +269,6 @@ class MainViewModel(
                         onFailure = { ExportState.Failed(it.message ?: "書き出しに失敗しました") },
                     ),
                 )
-            }
-        }
-    }
-
-    private suspend fun estimateSize(input: EstimateInput?) {
-        if (input == null) {
-            viewModelState.update { it.copy(sizeEstimate = SizeEstimateState.None) }
-            return
-        }
-        // 推定用のサンプルエンコードが本番の書き出しとCPUを奪い合わないよう、書き出し中は推定しない
-        if (input.isExporting) {
-            viewModelState.update {
-                it.copy(
-                    sizeEstimate = if (it.sizeEstimate is SizeEstimateState.Calculating) {
-                        SizeEstimateState.None
-                    } else {
-                        it.sizeEstimate
-                    },
-                )
-            }
-            return
-        }
-        when (val bitRate = input.settings.bitRate) {
-            is BitRateSetting.Constant -> {
-                val bytes = SizeEstimator.estimateConstantBitRateBytes(input.info, bitRate.kbps)
-                viewModelState.update { it.copy(sizeEstimate = SizeEstimateState.Estimated(bytes)) }
-            }
-
-            is BitRateSetting.Quality -> {
-                val paths = (viewModelState.value.ffmpeg as? FFmpegState.Available)?.paths ?: return
-                viewModelState.update { it.copy(sizeEstimate = SizeEstimateState.Calculating) }
-                // スライダー操作中に毎回サンプルエンコードしないよう少し待つ
-                delay(500)
-                val result = SizeEstimator.estimateBySamplingBytes(paths, input.file, input.info, input.settings)
-                viewModelState.update {
-                    it.copy(
-                        sizeEstimate = result.fold(
-                            onSuccess = { bytes -> SizeEstimateState.Estimated(bytes) },
-                            onFailure = { SizeEstimateState.Failed },
-                        ),
-                    )
-                }
             }
         }
     }
@@ -435,7 +377,7 @@ class MainViewModel(
                 settings = createSettingsUiState(state, source.info),
                 export = ExportUiState(
                     status = createExportStatus(state.export),
-                    estimatedSizeText = createEstimatedSizeText(state.sizeEstimate),
+                    estimatedSizeText = createEstimatedSizeText(source.info, state.settings),
                     event = exportEvent,
                 ),
             )
@@ -535,12 +477,14 @@ class MainViewModel(
         }
     }
 
-    private fun createEstimatedSizeText(sizeEstimate: SizeEstimateState): String? {
-        return when (sizeEstimate) {
-            SizeEstimateState.None -> null
-            SizeEstimateState.Calculating -> "推定サイズ: 計算中…"
-            is SizeEstimateState.Estimated -> "推定サイズ: 約 ${formatBytes(sizeEstimate.bytes)}"
-            SizeEstimateState.Failed -> "推定サイズ: 計算できませんでした"
+    private fun createEstimatedSizeText(info: VideoInfo, settings: EncodeSettings): String? {
+        return when (val bitRate = settings.bitRate) {
+            is BitRateSetting.Constant -> {
+                val bytes = SizeEstimator.estimateConstantBitRateBytes(info, bitRate.kbps)
+                "推定サイズ: 約 ${formatBytes(bytes)}"
+            }
+
+            is BitRateSetting.Quality -> null
         }
     }
 
@@ -572,22 +516,7 @@ class MainViewModel(
         val customBitRateText: String,
         val export: ExportState,
         val preview: PreviewState,
-        val sizeEstimate: SizeEstimateState,
     )
-
-    private data class EstimateInput(
-        val file: File,
-        val info: VideoInfo,
-        val settings: EncodeSettings,
-        val isExporting: Boolean,
-    )
-
-    private sealed interface SizeEstimateState {
-        data object None : SizeEstimateState
-        data object Calculating : SizeEstimateState
-        data class Estimated(val bytes: Long) : SizeEstimateState
-        data object Failed : SizeEstimateState
-    }
 
     private sealed interface FFmpegState {
         data object Checking : FFmpegState
