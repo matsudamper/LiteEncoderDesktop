@@ -9,12 +9,6 @@ ffmpeg を使った Windows 向けの簡易動画エンコーダ。
 - Windows (x64)
 - ffmpeg / ffprobe
 
-ffmpeg が見つからない場合はアプリ上にインストール方法が表示される。
-
-```
-winget install --id Gyan.FFmpeg -e
-```
-
 ## ビルド
 
 JDK 21 が必要。
