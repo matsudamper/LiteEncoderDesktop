@@ -56,7 +56,7 @@ internal fun EncodeSettingsPanel(
                 onValueChange = uiState.event::onCustomBitRateChange,
                 label = { Text("カスタム (kbps)") },
                 singleLine = true,
-                enabled = uiState.isEnabled && uiState.isCustomBitRateEnabled,
+                enabled = uiState.isEnabled,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
             )

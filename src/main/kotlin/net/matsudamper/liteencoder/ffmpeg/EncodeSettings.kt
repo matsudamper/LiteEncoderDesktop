@@ -3,9 +3,9 @@ package net.matsudamper.liteencoder.ffmpeg
 import java.io.File
 import kotlin.math.roundToInt
 
-enum class OutputFormat(val label: String, val extension: String, val supportsConstantBitRate: Boolean) {
-    WebP("webp", "webp", supportsConstantBitRate = false),
-    Mp4("mp4", "mp4", supportsConstantBitRate = true),
+enum class OutputFormat(val label: String, val extension: String) {
+    WebM("webm", "webm"),
+    Mp4("mp4", "mp4"),
     ;
 
     fun isSameFormatAs(file: File): Boolean = file.extension.equals(extension, ignoreCase = true)

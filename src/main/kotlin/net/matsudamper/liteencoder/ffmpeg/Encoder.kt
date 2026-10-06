@@ -93,7 +93,7 @@ object Encoder {
         addAll(listOf("-i", input.absolutePath))
         addAll(videoOutputArgs(info, settings))
         when (settings.format) {
-            OutputFormat.WebP -> addAll(listOf("-an", "-loop", "0", "-f", "webp"))
+            OutputFormat.WebM -> addAll(listOf("-c:a", "libopus", "-b:a", "${AUDIO_BIT_RATE_KBPS}k", "-f", "webm"))
             OutputFormat.Mp4 -> addAll(listOf("-c:a", "aac", "-b:a", "${AUDIO_BIT_RATE_KBPS}k", "-movflags", "+faststart", "-f", "mp4"))
         }
         add(output.absolutePath)
@@ -108,15 +108,8 @@ object Encoder {
             addAll(listOf("-r", fps.toString()))
         }
         when (settings.format) {
-            OutputFormat.WebP -> addAll(webpCodecArgs(settings.bitRate))
+            OutputFormat.WebM -> addAll(vp9CodecArgs(settings.bitRate))
             OutputFormat.Mp4 -> addAll(h264CodecArgs(settings.bitRate))
-        }
-    }
-
-    internal fun audioBitRateKbps(info: VideoInfo, settings: EncodeSettings): Int {
-        return when (settings.format) {
-            OutputFormat.WebP -> 0
-            OutputFormat.Mp4 -> if (info.hasAudio) AUDIO_BIT_RATE_KBPS else 0
         }
     }
 
@@ -134,13 +127,21 @@ object Encoder {
         }
     }
 
-    private fun webpCodecArgs(bitRate: BitRateSetting): List<String> = buildList {
-        addAll(listOf("-c:v", "libwebp", "-lossless", "0", "-pix_fmt", "yuva420p"))
-        // libwebpはビットレート指定に対応していないため、固定ビットレートが来ても既定の品質で書き出す
-        val crf = (bitRate as? BitRateSetting.Quality)?.crf ?: BitRateSetting.DEFAULT_CRF
-        addAll(listOf("-quality", webpQualityFromCrf(crf).toString()))
+    private fun vp9CodecArgs(bitRate: BitRateSetting): List<String> = buildList {
+        addAll(listOf("-c:v", "libvpx-vp9", "-deadline", "good", "-cpu-used", "4", "-row-mt", "1", "-pix_fmt", "yuv420p"))
+        when (bitRate) {
+            // VP9は-b:v 0を付けないとCRFが上限ビットレート付きの制約付き品質モードになる
+            is BitRateSetting.Quality -> addAll(listOf("-crf", vp9CrfFromX264Crf(bitRate.crf).toString(), "-b:v", "0"))
+            is BitRateSetting.Constant -> addAll(
+                listOf(
+                    "-b:v", "${bitRate.kbps}k",
+                    "-maxrate", "${bitRate.kbps}k",
+                    "-bufsize", "${bitRate.kbps * 2}k",
+                ),
+            )
+        }
     }
 
-    // libwebpはCRFを持たないため、CRFの範囲を品質(0-100、大きいほど高画質)へ写す
-    internal fun webpQualityFromCrf(crf: Int): Int = (100 - (crf - 10) * 3).coerceIn(0, 100)
+    // UIのCRFはx264基準(0-51)のため、同程度の画質になるようVP9のCRF(0-63)へずらす
+    private fun vp9CrfFromX264Crf(crf: Int): Int = (crf + 10).coerceIn(0, 63)
 }

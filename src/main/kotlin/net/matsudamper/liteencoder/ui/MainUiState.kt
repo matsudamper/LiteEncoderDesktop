@@ -79,7 +79,6 @@ data class EncodeSettingsUiState(
     val sourceBitRateText: String?,
     val quality: QualityUiState?,
     val customBitRateText: String,
-    val isCustomBitRateEnabled: Boolean,
     val event: Event,
 ) {
     data class QualityUiState(

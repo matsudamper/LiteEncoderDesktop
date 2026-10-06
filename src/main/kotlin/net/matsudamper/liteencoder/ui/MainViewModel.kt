@@ -161,16 +161,7 @@ class MainViewModel(
 
     private val formatOptionEvents = OutputFormat.entries.associateWith { format ->
         OptionUiState.Event {
-            viewModelState.update { state ->
-                val keepsBitRate = format.supportsConstantBitRate || state.settings.bitRate is BitRateSetting.Quality
-                state.copy(
-                    customBitRateText = if (keepsBitRate) state.customBitRateText else "",
-                    settings = state.settings.copy(
-                        format = format,
-                        bitRate = if (keepsBitRate) state.settings.bitRate else BitRateSetting.Quality(BitRateSetting.DEFAULT_CRF),
-                    ),
-                )
-            }
+            viewModelState.update { it.copy(settings = it.settings.copy(format = format)) }
         }
     }
 
@@ -326,7 +317,7 @@ class MainViewModel(
         }
         when (val bitRate = input.settings.bitRate) {
             is BitRateSetting.Constant -> {
-                val bytes = SizeEstimator.estimateConstantBitRateBytes(input.info, input.settings, bitRate.kbps)
+                val bytes = SizeEstimator.estimateConstantBitRateBytes(input.info, bitRate.kbps)
                 viewModelState.update { it.copy(sizeEstimate = SizeEstimateState.Estimated(bytes)) }
             }
 
@@ -525,7 +516,7 @@ class MainViewModel(
                         OptionUiState(
                             label = formatKbps(kbps),
                             isSelected = bitRate == BitRateSetting.Constant(kbps),
-                            isEnabled = settings.format.supportsConstantBitRate,
+                            isEnabled = true,
                             event = kbpsOptionEvents.getValue(kbps),
                         ),
                     )
@@ -543,7 +534,6 @@ class MainViewModel(
                 is BitRateSetting.Constant -> null
             },
             customBitRateText = state.customBitRateText,
-            isCustomBitRateEnabled = settings.format.supportsConstantBitRate,
             event = settingsEvent,
         )
     }
