@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
@@ -20,9 +21,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Snackbar
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -147,6 +150,16 @@ private fun ReadyScreen(
                 )
             }
         }
+        val exportCompletedNotification = uiState.exportCompletedNotification
+        if (exportCompletedNotification != null) {
+            ExportCompletedSnackbar(
+                uiState = exportCompletedNotification,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(16.dp)
+                    .widthIn(max = 480.dp),
+            )
+        }
         if (isDragging) {
             Box(
                 modifier = Modifier
@@ -158,6 +171,28 @@ private fun ReadyScreen(
                 Text("ドロップして開く", style = MaterialTheme.typography.headlineMedium)
             }
         }
+    }
+}
+
+@Composable
+private fun ExportCompletedSnackbar(
+    uiState: MainUiState.ExportCompletedNotification,
+    modifier: Modifier = Modifier,
+) {
+    Snackbar(
+        modifier = modifier,
+        action = {
+            TextButton(onClick = uiState.event::onRevealOutputClick) {
+                Text("フォルダを開く", color = MaterialTheme.colorScheme.inversePrimary)
+            }
+        },
+        dismissAction = {
+            IconButton(onClick = uiState.event::onDismissClick) {
+                Text("✕", color = MaterialTheme.colorScheme.inverseOnSurface)
+            }
+        },
+    ) {
+        Text(uiState.message, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -228,20 +263,6 @@ private fun ExportSection(uiState: ExportUiState) {
                 OutlinedButton(onClick = uiState.event::onCancelClick, modifier = Modifier.fillMaxWidth()) {
                     Text("キャンセル")
                 }
-            }
-
-            is ExportUiState.Status.Done -> {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        status.message,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(onClick = uiState.event::onRevealOutputClick) {
-                        Text("フォルダを開く")
-                    }
-                }
-                ExportButton(onClick = uiState.event::onExportClick)
             }
 
             is ExportUiState.Status.Failed -> {
