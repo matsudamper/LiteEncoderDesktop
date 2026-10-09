@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import net.matsudamper.liteencoder.ffmpeg.AudioPlayer
 import net.matsudamper.liteencoder.ffmpeg.BitRateSetting
 import net.matsudamper.liteencoder.ffmpeg.EncodeSettings
 import net.matsudamper.liteencoder.ffmpeg.Encoder
@@ -348,6 +349,11 @@ class MainViewModel(
         val start = if (position >= duration - 0.1) 0.0 else position
         viewModelState.update { it.copy(preview = it.preview.copy(isPlaying = true)) }
         playJob = scope.launch {
+            val audioJob = if (loaded.info.hasAudio) {
+                launch { playPreviewAudio(paths, loaded.file, start) }
+            } else {
+                null
+            }
             collectPreviewFrames(
                 FrameDecoder.decode(
                     paths = paths,
@@ -361,7 +367,19 @@ class MainViewModel(
             ) { preview, frame ->
                 preview.copy(frame = frame.image, positionSeconds = frame.positionSeconds.coerceAtMost(duration))
             }
+            audioJob?.cancel()
             viewModelState.update { it.copy(preview = it.preview.copy(isPlaying = false)) }
+        }
+    }
+
+    private suspend fun playPreviewAudio(paths: FFmpegPaths, file: File, startSeconds: Double) {
+        try {
+            AudioPlayer.play(paths = paths, file = file, startSeconds = startSeconds)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // 音声デバイスが無い環境でも映像のプレビューは続けたいので、音声の失敗は無視する
+            e.printStackTrace()
         }
     }
 
