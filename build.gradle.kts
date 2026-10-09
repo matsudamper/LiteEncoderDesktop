@@ -10,7 +10,7 @@ group = "net.matsudamper.liteencoder"
 version = "1.0.0"
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(25)
 }
 
 dependencies {
