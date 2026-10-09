@@ -55,12 +55,18 @@ data class EncodeSettings(
     val resolution: ResolutionPreset,
     val frameRate: FrameRatePreset,
     val bitRate: BitRateSetting,
+    val volumePercent: Int,
 ) {
     companion object {
+        const val DEFAULT_VOLUME_PERCENT = 100
+        const val MAX_VOLUME_PERCENT = 200
+        const val VOLUME_STEP_PERCENT = 5
+
         val Initial = EncodeSettings(
             resolution = ResolutionPreset.Original,
             frameRate = FrameRatePreset.Original,
             bitRate = BitRateSetting.Quality(BitRateSetting.DEFAULT_CRF),
+            volumePercent = DEFAULT_VOLUME_PERCENT,
         )
     }
 }

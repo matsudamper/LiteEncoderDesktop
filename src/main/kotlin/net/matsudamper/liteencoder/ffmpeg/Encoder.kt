@@ -92,6 +92,9 @@ object Encoder {
         addAll(listOf(paths.ffmpeg, "-y", "-hide_banner", "-nostdin", "-nostats", "-v", "error", "-progress", "pipe:1"))
         addAll(listOf("-i", input.absolutePath))
         addAll(videoOutputArgs(info, settings))
+        if (settings.volumePercent != EncodeSettings.DEFAULT_VOLUME_PERCENT) {
+            addAll(listOf("-af", "volume=${settings.volumePercent / 100.0}"))
+        }
         addAll(listOf("-c:a", "aac", "-b:a", "${AUDIO_BIT_RATE_KBPS}k", "-movflags", "+faststart", "-f", "mp4"))
         add(output.absolutePath)
     }

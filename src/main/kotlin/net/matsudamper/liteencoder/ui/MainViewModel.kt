@@ -129,6 +129,12 @@ class MainViewModel(
                 it.copy(customBitRateText = digits, settings = it.settings.copy(bitRate = bitRate))
             }
         }
+
+        override fun onVolumeChange(percent: Float) {
+            viewModelState.update {
+                it.copy(settings = it.settings.copy(volumePercent = percent.roundToInt()))
+            }
+        }
     }
 
     private val exportEvent = object : ExportUiState.Event {
@@ -200,7 +206,9 @@ class MainViewModel(
                 .map { state ->
                     val loaded = state.source as? SourceState.Loaded
                     if (loaded != null) {
-                        EstimateInput(loaded.file, loaded.info, state.settings, state.export is ExportState.Running)
+                        // 推定は映像のみをサンプルエンコードするため、音量だけの変更で再推定しないよう除外する
+                        val videoSettings = state.settings.copy(volumePercent = EncodeSettings.DEFAULT_VOLUME_PERCENT)
+                        EstimateInput(loaded.file, loaded.info, videoSettings, state.export is ExportState.Running)
                     } else {
                         null
                     }
@@ -518,6 +526,16 @@ class MainViewModel(
                 is BitRateSetting.Constant -> null
             },
             customBitRateText = state.customBitRateText,
+            volume = if (info.hasAudio) {
+                EncodeSettingsUiState.VolumeUiState(
+                    percent = settings.volumePercent.toFloat(),
+                    label = "${settings.volumePercent}%",
+                    percentRange = 0f..EncodeSettings.MAX_VOLUME_PERCENT.toFloat(),
+                    steps = EncodeSettings.MAX_VOLUME_PERCENT / EncodeSettings.VOLUME_STEP_PERCENT - 1,
+                )
+            } else {
+                null
+            },
             event = settingsEvent,
         )
     }
