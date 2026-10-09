@@ -78,8 +78,16 @@ data class EncodeSettingsUiState(
     val sourceBitRateText: String?,
     val quality: QualityUiState?,
     val customBitRateText: String,
+    val volume: VolumeUiState?,
     val event: Event,
 ) {
+    data class VolumeUiState(
+        val percent: Float,
+        val label: String,
+        val percentRange: ClosedFloatingPointRange<Float>,
+        val steps: Int,
+    )
+
     data class QualityUiState(
         val crf: Float,
         val label: String,
@@ -91,6 +99,7 @@ data class EncodeSettingsUiState(
     interface Event {
         fun onQualityChange(crf: Float)
         fun onCustomBitRateChange(text: String)
+        fun onVolumeChange(percent: Float)
     }
 }
 

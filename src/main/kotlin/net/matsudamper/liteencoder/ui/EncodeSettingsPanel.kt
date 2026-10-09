@@ -57,6 +57,20 @@ internal fun EncodeSettingsPanel(
                 modifier = Modifier.fillMaxWidth(),
             )
         }
+
+        val volume = uiState.volume
+        if (volume != null) {
+            Section("音量") {
+                Text(volume.label, style = MaterialTheme.typography.bodyMedium)
+                Slider(
+                    value = volume.percent,
+                    onValueChange = uiState.event::onVolumeChange,
+                    valueRange = volume.percentRange,
+                    steps = volume.steps,
+                    enabled = uiState.isEnabled,
+                )
+            }
+        }
     }
 }
 
