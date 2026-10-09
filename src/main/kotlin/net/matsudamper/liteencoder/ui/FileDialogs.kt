@@ -25,7 +25,7 @@ class FileKitDialogs(window: Window) : FileDialogs {
     override suspend fun pickExportDestination(suggestedName: String, directory: File?): File? {
         return FileKit.openFileSaver(
             suggestedName = suggestedName,
-            extension = "mp4",
+            defaultExtension = "mp4",
             directory = if (directory != null) PlatformFile(directory) else null,
             dialogSettings = dialogSettings,
         )?.file
