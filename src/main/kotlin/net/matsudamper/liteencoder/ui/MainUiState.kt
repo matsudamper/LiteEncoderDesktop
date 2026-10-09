@@ -71,16 +71,21 @@ data class PreviewUiState(
 @Immutable
 data class EncodeSettingsUiState(
     val isEnabled: Boolean,
+    val formatOptions: List<OptionUiState>,
     val resolutionOptions: List<OptionUiState>,
     val outputSizeText: String,
     val frameRateOptions: List<OptionUiState>,
-    val bitRateOptions: List<OptionUiState>,
-    val sourceBitRateText: String?,
-    val quality: QualityUiState?,
-    val customBitRateText: String,
+    val bitRate: BitRateUiState?,
     val volume: VolumeUiState?,
     val event: Event,
 ) {
+    data class BitRateUiState(
+        val options: List<OptionUiState>,
+        val sourceBitRateText: String?,
+        val quality: QualityUiState?,
+        val customBitRateText: String,
+    )
+
     data class VolumeUiState(
         val percent: Float,
         val label: String,

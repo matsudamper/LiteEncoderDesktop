@@ -24,11 +24,15 @@ object Encoder {
         // キャンセル・失敗時に既存の出力ファイルを壊さないよう、一時ファイルに書き出してから置き換える
         val temp = File(output.parentFile, ".${output.name}.${System.currentTimeMillis()}.tmp")
         try {
-            runFFmpeg(
-                command = buildCommand(paths, input, temp, info, settings),
-                durationSeconds = info.durationSeconds,
-                onProgressRatio = onProgressRatio,
-            )
+            when (settings.format) {
+                OutputFormat.Mp4 -> runFFmpeg(
+                    command = buildMp4Command(paths, input, temp, info, settings),
+                    durationSeconds = info.durationSeconds,
+                    onProgressRatio = onProgressRatio,
+                )
+
+                OutputFormat.Gif -> encodeGif(paths, input, temp, info, settings, onProgressRatio)
+            }
             Files.move(temp.toPath(), output.toPath(), StandardCopyOption.REPLACE_EXISTING)
             onProgressRatio(1f)
             Result.success(Unit)
@@ -38,6 +42,43 @@ object Encoder {
             Result.failure(e)
         } finally {
             temp.delete()
+        }
+    }
+
+    // split→palettegen の1パスだと palettegen が入力末尾に達するまで全フレームをメモリに溜めるため、パレットを先に作る2パスにする
+    private suspend fun encodeGif(
+        paths: FFmpegPaths,
+        input: File,
+        output: File,
+        info: VideoInfo,
+        settings: EncodeSettings,
+        onProgressRatio: suspend (Float) -> Unit,
+    ) {
+        val palette = File.createTempFile("liteencoder_palette", ".png")
+        try {
+            runFFmpeg(
+                command = buildList {
+                    addAll(commandPrefix(paths))
+                    addAll(listOf("-i", input.absolutePath))
+                    addAll(listOf("-vf", "${gifBaseFilter(info, settings)},palettegen"))
+                    addAll(listOf("-update", "1", "-frames:v", "1", palette.absolutePath))
+                },
+                durationSeconds = info.durationSeconds,
+                // palettegen は入力を読み切るまで出力しないため進捗が取れない
+                onProgressRatio = {},
+            )
+            runFFmpeg(
+                command = buildList {
+                    addAll(commandPrefix(paths))
+                    addAll(listOf("-i", input.absolutePath, "-i", palette.absolutePath))
+                    addAll(listOf("-lavfi", "${gifBaseFilter(info, settings)}[video];[video][1:v]paletteuse"))
+                    addAll(listOf("-an", "-loop", "0", "-f", "gif", output.absolutePath))
+                },
+                durationSeconds = info.durationSeconds,
+                onProgressRatio = onProgressRatio,
+            )
+        } finally {
+            palette.delete()
         }
     }
 
@@ -82,16 +123,20 @@ object Encoder {
         }
     }
 
-    private fun buildCommand(
+    private fun commandPrefix(paths: FFmpegPaths): List<String> {
+        return listOf(paths.ffmpeg, "-y", "-hide_banner", "-nostdin", "-nostats", "-v", "error", "-progress", "pipe:1")
+    }
+
+    private fun buildMp4Command(
         paths: FFmpegPaths,
         input: File,
         output: File,
         info: VideoInfo,
         settings: EncodeSettings,
     ): List<String> = buildList {
-        addAll(listOf(paths.ffmpeg, "-y", "-hide_banner", "-nostdin", "-nostats", "-v", "error", "-progress", "pipe:1"))
+        addAll(commandPrefix(paths))
         addAll(listOf("-i", input.absolutePath))
-        addAll(videoOutputArgs(info, settings))
+        addAll(h264OutputArgs(info, settings))
         if (settings.volumePercent != EncodeSettings.DEFAULT_VOLUME_PERCENT) {
             addAll(listOf("-af", "volume=${settings.volumePercent / 100.0}"))
         }
@@ -99,7 +144,31 @@ object Encoder {
         add(output.absolutePath)
     }
 
-    internal fun videoOutputArgs(info: VideoInfo, settings: EncodeSettings): List<String> = buildList {
+    /**
+     * 容量推定のサンプルエンコード用。GIFは短い区間だけを扱う前提で1パスにしている。
+     */
+    internal fun sampleVideoOutputArgs(info: VideoInfo, settings: EncodeSettings): List<String> {
+        return when (settings.format) {
+            OutputFormat.Mp4 -> h264OutputArgs(info, settings) + listOf("-f", "h264")
+            OutputFormat.Gif -> listOf(
+                "-vf", "${gifBaseFilter(info, settings)},split[a][b];[a]palettegen[p];[b][p]paletteuse",
+                "-f", "gif",
+            )
+        }
+    }
+
+    private fun gifBaseFilter(info: VideoInfo, settings: EncodeSettings): String {
+        val size = settings.resolution.outputSize(info)
+        return buildList {
+            val fps = settings.frameRate.fps
+            if (fps != null) {
+                add("fps=$fps")
+            }
+            add("scale=${size.width}:${size.height}:flags=lanczos")
+        }.joinToString(",")
+    }
+
+    private fun h264OutputArgs(info: VideoInfo, settings: EncodeSettings): List<String> = buildList {
         // 元のサイズでも奇数サイズはlibx264/yuv420pで扱えないため、常に偶数サイズへスケールする
         val size = settings.resolution.outputSize(info)
         addAll(listOf("-vf", "scale=${size.width}:${size.height}"))

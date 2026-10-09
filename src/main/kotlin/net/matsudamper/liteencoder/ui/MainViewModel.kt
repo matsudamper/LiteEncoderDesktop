@@ -27,6 +27,7 @@ import net.matsudamper.liteencoder.ffmpeg.FFmpegLocator
 import net.matsudamper.liteencoder.ffmpeg.FFmpegPaths
 import net.matsudamper.liteencoder.ffmpeg.FrameDecoder
 import net.matsudamper.liteencoder.ffmpeg.FrameRatePreset
+import net.matsudamper.liteencoder.ffmpeg.OutputFormat
 import net.matsudamper.liteencoder.ffmpeg.ResolutionPreset
 import net.matsudamper.liteencoder.ffmpeg.Size
 import net.matsudamper.liteencoder.ffmpeg.SizeEstimator
@@ -143,6 +144,7 @@ class MainViewModel(
             scope.launch {
                 val output = fileDialogs.pickExportDestination(
                     suggestedName = "${loaded.file.nameWithoutExtension}_encoded",
+                    extension = viewModelState.value.settings.format.extension,
                     directory = loaded.file.parentFile,
                 )
                 if (output != null) {
@@ -160,6 +162,12 @@ class MainViewModel(
         override fun onRevealOutputClick() {
             val done = viewModelState.value.export as? ExportState.Done ?: return
             revealInExplorer(done.output)
+        }
+    }
+
+    private val formatOptionEvents = OutputFormat.entries.associateWith { format ->
+        OptionUiState.Event {
+            viewModelState.update { it.copy(settings = it.settings.copy(format = format)) }
         }
     }
 
@@ -206,8 +214,14 @@ class MainViewModel(
                 .map { state ->
                     val loaded = state.source as? SourceState.Loaded
                     if (loaded != null) {
-                        // 推定は映像のみをサンプルエンコードするため、音量だけの変更で再推定しないよう除外する
-                        val videoSettings = state.settings.copy(volumePercent = EncodeSettings.DEFAULT_VOLUME_PERCENT)
+                        // 推定は映像のみをサンプルエンコードするため、容量に影響しない設定の変更で再推定しないよう除外する
+                        val videoSettings = when (state.settings.format) {
+                            OutputFormat.Mp4 -> state.settings.copy(volumePercent = EncodeSettings.DEFAULT_VOLUME_PERCENT)
+                            OutputFormat.Gif -> state.settings.copy(
+                                volumePercent = EncodeSettings.DEFAULT_VOLUME_PERCENT,
+                                bitRate = EncodeSettings.Initial.bitRate,
+                            )
+                        }
                         EstimateInput(loaded.file, loaded.info, videoSettings, state.export is ExportState.Running)
                     } else {
                         null
@@ -315,13 +329,14 @@ class MainViewModel(
             }
             return
         }
-        when (val bitRate = input.settings.bitRate) {
-            is BitRateSetting.Constant -> {
-                val bytes = SizeEstimator.estimateConstantBitRateBytes(input.info, bitRate.kbps)
+        val constantBitRate = input.settings.bitRate as? BitRateSetting.Constant
+        when {
+            input.settings.format == OutputFormat.Mp4 && constantBitRate != null -> {
+                val bytes = SizeEstimator.estimateConstantBitRateBytes(input.info, input.settings, constantBitRate.kbps)
                 viewModelState.update { it.copy(sizeEstimate = SizeEstimateState.Estimated(bytes)) }
             }
 
-            is BitRateSetting.Quality -> {
+            else -> {
                 val paths = (viewModelState.value.ffmpeg as? FFmpegState.Available)?.paths ?: return
                 viewModelState.update { it.copy(sizeEstimate = SizeEstimateState.Calculating) }
                 // スライダー操作中に毎回サンプルエンコードしないよう少し待つ
@@ -470,9 +485,16 @@ class MainViewModel(
     private fun createSettingsUiState(state: ViewModelState, info: VideoInfo): EncodeSettingsUiState {
         val settings = state.settings
         val outputSize = settings.resolution.outputSize(info)
-        val bitRate = settings.bitRate
         return EncodeSettingsUiState(
             isEnabled = state.export !is ExportState.Running,
+            formatOptions = OutputFormat.entries.map { format ->
+                OptionUiState(
+                    label = format.label,
+                    isSelected = settings.format == format,
+                    isEnabled = true,
+                    event = formatOptionEvents.getValue(format),
+                )
+            },
             resolutionOptions = ResolutionPreset.entries.map { preset ->
                 OptionUiState(
                     label = preset.label,
@@ -494,7 +516,28 @@ class MainViewModel(
                     event = frameRateOptionEvents.getValue(preset),
                 )
             },
-            bitRateOptions = buildList {
+            bitRate = when (settings.format) {
+                OutputFormat.Mp4 -> createBitRateUiState(state, info)
+                OutputFormat.Gif -> null
+            },
+            volume = if (info.hasAudio && settings.format == OutputFormat.Mp4) {
+                EncodeSettingsUiState.VolumeUiState(
+                    percent = settings.volumePercent.toFloat(),
+                    label = "${settings.volumePercent}%",
+                    percentRange = 0f..EncodeSettings.MAX_VOLUME_PERCENT.toFloat(),
+                    steps = EncodeSettings.MAX_VOLUME_PERCENT / EncodeSettings.VOLUME_STEP_PERCENT - 1,
+                )
+            } else {
+                null
+            },
+            event = settingsEvent,
+        )
+    }
+
+    private fun createBitRateUiState(state: ViewModelState, info: VideoInfo): EncodeSettingsUiState.BitRateUiState {
+        val bitRate = state.settings.bitRate
+        return EncodeSettingsUiState.BitRateUiState(
+            options = buildList {
                 add(
                     OptionUiState(
                         label = "自動（品質指定）",
@@ -526,17 +569,6 @@ class MainViewModel(
                 is BitRateSetting.Constant -> null
             },
             customBitRateText = state.customBitRateText,
-            volume = if (info.hasAudio) {
-                EncodeSettingsUiState.VolumeUiState(
-                    percent = settings.volumePercent.toFloat(),
-                    label = "${settings.volumePercent}%",
-                    percentRange = 0f..EncodeSettings.MAX_VOLUME_PERCENT.toFloat(),
-                    steps = EncodeSettings.MAX_VOLUME_PERCENT / EncodeSettings.VOLUME_STEP_PERCENT - 1,
-                )
-            } else {
-                null
-            },
-            event = settingsEvent,
         )
     }
 

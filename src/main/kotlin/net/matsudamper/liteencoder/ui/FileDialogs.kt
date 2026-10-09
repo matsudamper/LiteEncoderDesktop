@@ -12,7 +12,7 @@ import java.io.File
 
 interface FileDialogs {
     suspend fun pickVideo(): File?
-    suspend fun pickExportDestination(suggestedName: String, directory: File?): File?
+    suspend fun pickExportDestination(suggestedName: String, extension: String, directory: File?): File?
 }
 
 class FileKitDialogs(window: Window) : FileDialogs {
@@ -22,10 +22,10 @@ class FileKitDialogs(window: Window) : FileDialogs {
         return FileKit.openFilePicker(type = FileKitType.Video, dialogSettings = dialogSettings)?.file
     }
 
-    override suspend fun pickExportDestination(suggestedName: String, directory: File?): File? {
+    override suspend fun pickExportDestination(suggestedName: String, extension: String, directory: File?): File? {
         return FileKit.openFileSaver(
             suggestedName = suggestedName,
-            extension = "mp4",
+            extension = extension,
             directory = if (directory != null) PlatformFile(directory) else null,
             dialogSettings = dialogSettings,
         )?.file

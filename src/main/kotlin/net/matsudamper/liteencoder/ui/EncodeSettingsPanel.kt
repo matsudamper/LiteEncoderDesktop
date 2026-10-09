@@ -21,6 +21,10 @@ internal fun EncodeSettingsPanel(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        Section("形式") {
+            OptionChips(options = uiState.formatOptions, isEnabled = uiState.isEnabled)
+        }
+
         Section("サイズ（比率維持）") {
             OptionChips(options = uiState.resolutionOptions, isEnabled = uiState.isEnabled)
             Text(uiState.outputSizeText, style = MaterialTheme.typography.bodySmall)
@@ -30,32 +34,35 @@ internal fun EncodeSettingsPanel(
             OptionChips(options = uiState.frameRateOptions, isEnabled = uiState.isEnabled)
         }
 
-        Section("ビットレート") {
-            OptionChips(options = uiState.bitRateOptions, isEnabled = uiState.isEnabled)
-            val sourceBitRateText = uiState.sourceBitRateText
-            if (sourceBitRateText != null) {
-                Text(sourceBitRateText, style = MaterialTheme.typography.bodySmall)
-            }
-            val quality = uiState.quality
-            if (quality != null) {
-                Text(quality.label, style = MaterialTheme.typography.bodyMedium)
-                Slider(
-                    value = quality.crf,
-                    onValueChange = uiState.event::onQualityChange,
-                    valueRange = quality.crfRange,
-                    steps = quality.steps,
+        val bitRate = uiState.bitRate
+        if (bitRate != null) {
+            Section("ビットレート") {
+                OptionChips(options = bitRate.options, isEnabled = uiState.isEnabled)
+                val sourceBitRateText = bitRate.sourceBitRateText
+                if (sourceBitRateText != null) {
+                    Text(sourceBitRateText, style = MaterialTheme.typography.bodySmall)
+                }
+                val quality = bitRate.quality
+                if (quality != null) {
+                    Text(quality.label, style = MaterialTheme.typography.bodyMedium)
+                    Slider(
+                        value = quality.crf,
+                        onValueChange = uiState.event::onQualityChange,
+                        valueRange = quality.crfRange,
+                        steps = quality.steps,
+                        enabled = uiState.isEnabled,
+                    )
+                }
+                OutlinedTextField(
+                    value = bitRate.customBitRateText,
+                    onValueChange = uiState.event::onCustomBitRateChange,
+                    label = { Text("カスタム (kbps)") },
+                    singleLine = true,
                     enabled = uiState.isEnabled,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
-            OutlinedTextField(
-                value = uiState.customBitRateText,
-                onValueChange = uiState.event::onCustomBitRateChange,
-                label = { Text("カスタム (kbps)") },
-                singleLine = true,
-                enabled = uiState.isEnabled,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-            )
         }
 
         val volume = uiState.volume

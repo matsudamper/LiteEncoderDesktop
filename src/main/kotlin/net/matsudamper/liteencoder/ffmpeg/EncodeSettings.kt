@@ -2,6 +2,11 @@ package net.matsudamper.liteencoder.ffmpeg
 
 import kotlin.math.roundToInt
 
+enum class OutputFormat(val label: String, val extension: String) {
+    Mp4("MP4", "mp4"),
+    Gif("GIF", "gif"),
+}
+
 enum class ResolutionPreset(val label: String, val shortSide: Int?) {
     Original("元のサイズ", null),
     P2160("2160p (4K)", 2160),
@@ -52,6 +57,7 @@ sealed interface BitRateSetting {
 }
 
 data class EncodeSettings(
+    val format: OutputFormat,
     val resolution: ResolutionPreset,
     val frameRate: FrameRatePreset,
     val bitRate: BitRateSetting,
@@ -63,6 +69,7 @@ data class EncodeSettings(
         const val VOLUME_STEP_PERCENT = 5
 
         val Initial = EncodeSettings(
+            format = OutputFormat.Mp4,
             resolution = ResolutionPreset.Original,
             frameRate = FrameRatePreset.Original,
             bitRate = BitRateSetting.Quality(BitRateSetting.DEFAULT_CRF),
