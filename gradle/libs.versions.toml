@@ -3,8 +3,11 @@ kotlin = "2.4.20"
 compose = "1.12.1"
 coroutines = "1.11.0"
 filekit = "0.16.0"
+compose-material3 = "1.9.0"
 
 [libraries]
+compose-desktop-windows-x64 = { module = "org.jetbrains.compose.desktop:desktop-jvm-windows-x64", version.ref = "compose" }
+compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-material3" }
 kotlinx-coroutines-swing = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-swing", version.ref = "coroutines" }
 filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose", version.ref = "filekit" }
 
