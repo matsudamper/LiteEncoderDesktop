@@ -57,6 +57,7 @@ class MainViewModel(
             settings = EncodeSettings.Initial,
             customBitRateText = "",
             export = ExportState.Idle,
+            completedExportOutput = null,
             preview = PreviewState.Initial,
             sizeEstimate = SizeEstimateState.None,
         ),
@@ -156,10 +157,16 @@ class MainViewModel(
             exportJob = null
             viewModelState.update { it.copy(export = ExportState.Idle) }
         }
+    }
 
+    private val exportCompletedEvent = object : MainUiState.ExportCompletedNotification.Event {
         override fun onRevealOutputClick() {
-            val done = viewModelState.value.export as? ExportState.Done ?: return
-            revealInExplorer(done.output)
+            val output = viewModelState.value.completedExportOutput ?: return
+            revealInExplorer(output)
+        }
+
+        override fun onDismissClick() {
+            viewModelState.update { it.copy(completedExportOutput = null) }
         }
     }
 
@@ -289,9 +296,10 @@ class MainViewModel(
             viewModelState.update { state ->
                 state.copy(
                     export = result.fold(
-                        onSuccess = { ExportState.Done(output) },
+                        onSuccess = { ExportState.Idle },
                         onFailure = { ExportState.Failed(it.message ?: "書き出しに失敗しました") },
                     ),
+                    completedExportOutput = if (result.isSuccess) output else state.completedExportOutput,
                 )
             }
         }
@@ -425,6 +433,12 @@ class MainViewModel(
             is FFmpegState.Available -> MainUiState.Content.Ready(
                 isFileDropEnabled = state.export !is ExportState.Running,
                 source = state.source?.let { createSourceUiState(state, it) },
+                exportCompletedNotification = state.completedExportOutput?.let { output ->
+                    MainUiState.ExportCompletedNotification(
+                        message = "書き出し完了: ${output.name}",
+                        event = exportCompletedEvent,
+                    )
+                },
             )
         }
         return MainUiState(content = content, event = mainEvent)
@@ -548,7 +562,6 @@ class MainViewModel(
                 progressText = "書き出し中… ${(export.progress * 100).toInt()}%",
             )
 
-            is ExportState.Done -> ExportUiState.Status.Done("書き出し完了: ${export.output.name}")
             is ExportState.Failed -> ExportUiState.Status.Failed(export.message)
         }
     }
@@ -589,6 +602,7 @@ class MainViewModel(
         val settings: EncodeSettings,
         val customBitRateText: String,
         val export: ExportState,
+        val completedExportOutput: File?,
         val preview: PreviewState,
         val sizeEstimate: SizeEstimateState,
     )
@@ -624,7 +638,6 @@ class MainViewModel(
     private sealed interface ExportState {
         data object Idle : ExportState
         data class Running(val progress: Float) : ExportState
-        data class Done(val output: File) : ExportState
         data class Failed(val message: String) : ExportState
     }
 

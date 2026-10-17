@@ -20,7 +20,19 @@ data class MainUiState(
         data class Ready(
             val isFileDropEnabled: Boolean,
             val source: Source?,
+            val exportCompletedNotification: ExportCompletedNotification?,
         ) : Content
+    }
+
+    data class ExportCompletedNotification(
+        val message: String,
+        val event: Event,
+    ) {
+        @Immutable
+        interface Event {
+            fun onRevealOutputClick()
+            fun onDismissClick()
+        }
     }
 
     data class Source(
@@ -127,8 +139,6 @@ data class ExportUiState(
 
         data class Running(val progress: Float, val progressText: String) : Status
 
-        data class Done(val message: String) : Status
-
         data class Failed(val message: String) : Status
     }
 
@@ -136,6 +146,5 @@ data class ExportUiState(
     interface Event {
         fun onExportClick()
         fun onCancelClick()
-        fun onRevealOutputClick()
     }
 }
