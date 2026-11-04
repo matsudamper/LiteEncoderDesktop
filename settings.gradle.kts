@@ -3,8 +3,8 @@ rootProject.name = "LiteEncoderDesktop"
 pluginManagement {
     repositories {
         gradlePluginPortal()
-        mavenCentral()
         google()
+        mavenCentral()
     }
 }
 
@@ -14,7 +14,7 @@ plugins {
 
 dependencyResolutionManagement {
     repositories {
-        mavenCentral()
         google()
+        mavenCentral()
     }
 }
