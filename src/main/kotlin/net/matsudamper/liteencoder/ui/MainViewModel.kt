@@ -39,8 +39,8 @@ import java.io.File
 import java.nio.file.Files
 import kotlin.math.roundToInt
 
-private const val PREVIEW_MAX_WIDTH = 960
-private const val PREVIEW_MAX_HEIGHT = 540
+private const val PREVIEW_MAX_WIDTH = 1920
+private const val PREVIEW_MAX_HEIGHT = 1080
 private const val MIN_CRF = 16
 private const val MAX_CRF = 35
 

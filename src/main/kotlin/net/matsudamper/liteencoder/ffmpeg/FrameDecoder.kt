@@ -37,7 +37,7 @@ object FrameDecoder {
             addAll(listOf(paths.ffmpeg, "-v", "error", "-nostdin"))
             if (throttleToPlaybackSpeed) add("-re")
             addAll(listOf("-ss", String.format(Locale.US, "%.3f", startSeconds), "-i", file.absolutePath))
-            addAll(listOf("-an", "-sn", "-vf", "scale=${size.width}:${size.height}"))
+            addAll(listOf("-an", "-sn", "-vf", "scale=${size.width}:${size.height}:flags=lanczos+full_chroma_int+accurate_rnd"))
             if (maxFrames != null) {
                 addAll(listOf("-frames:v", maxFrames.toString()))
             }
